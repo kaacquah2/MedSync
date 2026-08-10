@@ -1,0 +1,458 @@
+:root {
+  /* MedSync Redesign Brand Tokens */
+  --ink: #0B3B3C;
+  --mist: #F4F8F7;
+  --card: #FFFFFF;
+  --line: #D8E4E1;
+  --text: #1E2B2A;
+  --muted: #5C6F6D;
+  --accent: #177E6F;
+  --accent-hover: #0F6A5D;
+  --gold: #D9A441;
+  --danger: #B4452E;
+  --warn: #C7871F;
+  --ok: #2E8B6F;
+  --radius-login: 14px;
+
+  /* Surfaces mapping */
+  --surface-0: var(--mist);   /* page background */
+  --surface-1: var(--mist);   /* card background */
+  --surface-2: var(--card);   /* raised card / panel */
+
+  /* Text mapping */
+  --text-primary:   var(--text);
+  --text-secondary: var(--muted);
+  --text-muted:     var(--muted);
+
+  /* Borders mapping */
+  --border:        var(--line);
+  --border-strong: var(--line);
+
+  /* Role semantic colours — aligned with new tokens */
+  --accent-blue:   var(--accent);
+  --bg-blue:       rgba(23, 126, 111, 0.08);
+  --accent-green:  var(--ok);
+  --bg-green:      #EAF7F4;
+  --accent-amber:  var(--gold);
+  --bg-amber:      #FFF9E6;
+  --accent-red:    var(--danger);
+  --bg-red:        #FFF3F1;
+
+  --radius: 14px;
+
+  /* Overwrite Mantine variables */
+  --mantine-color-body: var(--mist);
+  --mantine-color-text: var(--text);
+  --mantine-color-anchor: var(--accent);
+}
+
+[data-mode="dark"],
+[data-theme="dark"],
+[data-mantine-color-scheme="dark"],
+.dark {
+  /* MedSync Dark Tokens */
+  --ink: #0A2C2D;
+  --mist: #071F20;
+  --card: #123F3F;
+  --line: #1E4A49;
+  --text: #E7F1EF;
+  --muted: #8FAAA6;
+  --accent: #2FA48F;
+  --accent-hover: #177E6F;
+  --gold: #E0B45A;
+  --danger: #E56B55;
+  --warn: #E0A63A;
+  --ok: #38D9A9;
+  --radius-login: 14px;
+
+  /* Surfaces mapping */
+  --surface-0: var(--mist);
+  --surface-1: var(--mist);
+  --surface-2: var(--card);
+
+  /* Text mapping */
+  --text-primary:   var(--text);
+  --text-secondary: var(--muted);
+  --text-muted:     var(--muted);
+
+  /* Borders mapping */
+  --border:        var(--line);
+  --border-strong: var(--line);
+
+  /* Role semantic colours */
+  --accent-blue:   var(--accent);
+  --bg-blue:       rgba(47, 164, 143, 0.12);
+  --accent-green:  var(--ok);
+  --bg-green:      #0E332B;
+  --accent-amber:  var(--gold);
+  --bg-amber:      #332D19;
+  --accent-red:    var(--danger);
+  --bg-red:        #371D1A;
+
+  /* Overwrite Mantine variables */
+  --mantine-color-body: var(--mist);
+  --mantine-color-text: var(--text);
+  --mantine-color-anchor: var(--accent);
+  
+  /* Mantine Card/Paper bg overrides */
+  --mantine-color-scheme: dark;
+}
+
+/* Dark mode overrides for green badges, theme icons, and text elements */
+[data-mode="dark"] .mantine-Badge-root[data-color="green"][data-variant="light"],
+[data-mantine-color-scheme="dark"] .mantine-Badge-root[data-color="green"][data-variant="light"],
+[data-mode="dark"] .mantine-Badge-root[data-color="clinical"][data-variant="light"],
+[data-mantine-color-scheme="dark"] .mantine-Badge-root[data-color="clinical"][data-variant="light"] {
+  color: #38D9A9 !important;
+  background-color: rgba(56, 217, 169, 0.15) !important;
+}
+
+[data-mode="dark"] .mantine-Badge-root[data-color="green"][data-variant="dot"],
+[data-mantine-color-scheme="dark"] .mantine-Badge-root[data-color="green"][data-variant="dot"] {
+  color: #38D9A9 !important;
+}
+
+[data-mode="dark"] .mantine-ThemeIcon-root[data-color="green"][data-variant="light"],
+[data-mantine-color-scheme="dark"] .mantine-ThemeIcon-root[data-color="green"][data-variant="light"],
+[data-mode="dark"] .mantine-ThemeIcon-root[data-color="clinical"][data-variant="light"],
+[data-mantine-color-scheme="dark"] .mantine-ThemeIcon-root[data-color="clinical"][data-variant="light"] {
+  color: #38D9A9 !important;
+  background-color: rgba(56, 217, 169, 0.15) !important;
+}
+
+[data-mode="dark"] .mantine-Text-root[data-color="green"],
+[data-mantine-color-scheme="dark"] .mantine-Text-root[data-color="green"],
+[data-mode="dark"] .mantine-Text-root[data-color="clinical"],
+[data-mantine-color-scheme="dark"] .mantine-Text-root[data-color="clinical"] {
+  color: #38D9A9 !important;
+}
+
+/* Dark mode input field and browser autofill background overrides */
+[data-mode="dark"] .mantine-Input-input,
+[data-mode="dark"] .mantine-TextInput-input,
+[data-mode="dark"] .mantine-PasswordInput-input,
+[data-mantine-color-scheme="dark"] .mantine-Input-input,
+[data-mantine-color-scheme="dark"] .mantine-TextInput-input,
+[data-mantine-color-scheme="dark"] .mantine-PasswordInput-input {
+  background-color: var(--mist) !important;
+  color: var(--text) !important;
+  border-color: var(--line) !important;
+}
+
+[data-mode="dark"] input:-webkit-autofill,
+[data-mode="dark"] input:-webkit-autofill:hover,
+[data-mode="dark"] input:-webkit-autofill:focus,
+[data-mantine-color-scheme="dark"] input:-webkit-autofill,
+[data-mantine-color-scheme="dark"] input:-webkit-autofill:hover,
+[data-mantine-color-scheme="dark"] input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text) !important;
+  -webkit-box-shadow: 0 0 0px 1000px var(--mist) inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+body {
+  background-color: var(--mist) !important;
+  color: var(--text) !important;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  margin: 0;
+  padding: 0;
+}
+
+/* Redesign Mantine Card & Paper globally */
+.mantine-Card-root,
+.mantine-Paper-root {
+  background-color: var(--card) !important;
+  border-color: var(--line) !important;
+  color: var(--text) !important;
+}
+
+/* Sidebar navigation overrides */
+.sidebar-nav a,
+.sidebar-nav .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 400;
+  width: 100%;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  box-sizing: border-box;
+}
+
+.sidebar-nav a:hover {
+  background: rgba(23, 126, 111, 0.05);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.sidebar-nav a.active,
+.sidebar-nav .nav-item.active {
+  background: var(--bg-blue);
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+/* Section group labels (OVERVIEW, STAFF, etc.) */
+.sidebar-section-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 8px 10px 3px;
+  margin-top: 6px;
+}
+
+/* Badge for unread counts on nav items */
+.sidebar-nav .nav-badge {
+  margin-left: auto;
+  background: var(--danger);
+  color: #fff;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  text-align: center;
+}
+
+/* Stat card styles */
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  border-left: 4px solid;          /* left accent stripe */
+  padding: 1.25rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  box-shadow: 0 4px 12px rgba(11, 59, 60, 0.02);
+}
+.stat-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(11, 59, 60, 0.04);
+}
+.stat-card.blue  { border-left-color: var(--accent); }
+.stat-card.green { border-left-color: var(--ok); }
+.stat-card.amber { border-left-color: var(--gold); }
+.stat-card.red   { border-left-color: var(--danger); }
+
+.stat-card .label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.5rem;
+}
+.stat-card .value {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.1;
+}
+.stat-card .delta {
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+}
+.stat-card .delta.up   { color: var(--ok); font-weight: 600; }
+.stat-card .delta.down { color: var(--danger); font-weight: 600; }
+.stat-card .delta.neutral { color: var(--muted); }
+
+/* Content card titles */
+.cardTitle {
+  font-family: 'IBM Plex Mono', monospace !important;
+  text-transform: uppercase !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.08em !important;
+  color: var(--muted) !important;
+  margin-bottom: 1rem !important;
+}
+
+/* Table Redesign */
+.mantine-Table-thead th,
+th {
+  font-family: 'IBM Plex Mono', monospace !important;
+  text-transform: uppercase !important;
+  color: var(--muted) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.05em !important;
+  border-bottom: 2px solid var(--line) !important;
+  padding: 0.75rem 1rem !important;
+  text-align: left;
+}
+
+.mantine-Table-tbody tr,
+tr {
+  border-bottom: 1px solid var(--line) !important;
+  transition: background-color 0.15s ease;
+}
+
+.mantine-Table-tbody td,
+td {
+  border-bottom: 1px solid var(--line) !important;
+  color: var(--text) !important;
+  font-size: 13px !important;
+  padding: 0.75rem 1rem !important;
+}
+
+.mantine-Table-tbody tr:hover,
+tr:hover {
+  background-color: rgba(23, 126, 111, 0.03) !important;
+}
+
+/* Sticky first column horizontally scrollable tables on mobile */
+@media (max-width: 768px) {
+  .responsive-table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .responsive-table th:first-child,
+  .responsive-table td:first-child {
+    position: sticky;
+    left: 0;
+    background-color: var(--card);
+    z-index: 1;
+    border-right: 1px solid var(--line);
+  }
+}
+
+/* Custom Recharts styling overrides */
+.recharts-cartesian-grid line {
+  stroke: var(--line) !important;
+  stroke-width: 0.5px !important;
+}
+
+.recharts-cartesian-axis-tick text {
+  fill: var(--muted) !important;
+  font-family: 'IBM Plex Mono', monospace !important;
+  font-size: 10px !important;
+}
+
+.recharts-default-tooltip,
+.mantine-Chart-tooltip,
+.mantine-charts-tooltip {
+  background-color: var(--card) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(11, 59, 60, 0.05) !important;
+  font-family: 'IBM Plex Mono', monospace !important;
+}
+
+.recharts-tooltip-label,
+.mantine-charts-tooltip-label {
+  font-weight: 600 !important;
+  color: var(--text) !important;
+}
+
+.recharts-tooltip-item,
+.mantine-charts-tooltip-item {
+  color: var(--muted) !important;
+}
+
+/* Heartbeat animation for login logo */
+@keyframes heartbeat {
+  0% { transform: scale(1); }
+  14% { transform: scale(1.15); }
+  28% { transform: scale(1); }
+  42% { transform: scale(1.15); }
+  70% { transform: scale(1); }
+}
+
+.heartbeat-icon {
+  animation: heartbeat 2s infinite ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heartbeat-icon {
+    animation: none !important;
+  }
+}
+
+/* Empty state design pattern */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 30px;
+  background: var(--card);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+
+.empty-state h4 {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  margin: 10px 0 4px 0;
+  color: var(--text);
+}
+
+.empty-state p {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 15px 0;
+  max-width: 250px;
+}
+
+/* Focus states */
+*:focus-visible {
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(23, 126, 111, 0.45) !important;
+}
+
+/* ── Print utilities ─────────────────────────────────────────────────────── */
+.print-only { display: none !important; }
+
+@media print {
+  header, nav, .mantine-AppShell-header, .mantine-AppShell-navbar {
+    display: none !important;
+  }
+
+  main, .mantine-AppShell-main {
+    margin: 0 !important;
+    padding: 0.5cm !important;
+  }
+
+  body {
+    background: white !important;
+    color: #111 !important;
+    font-size: 11pt !important;
+  }
+
+  .mantine-Card-root, .mantine-Paper-root {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+    break-inside: avoid;
+  }
+
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  .page-break { page-break-after: always; }
+  table { page-break-inside: auto; }
+  thead { display: table-header-group; }
+  tr    { page-break-inside: avoid; }
+  a::after { content: none !important; }
+}

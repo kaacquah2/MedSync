@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+  web:
+    build: .
+    image: med-emr:latest
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    # Override DATABASE_URL here if you want to use the local db service instead of Neon:
+    # environment:
+    #   DATABASE_URL: postgres://emr:emrpass@db:5432/emrdb
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/healthz/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false     # optional — remove this block if only using Neon
+    restart: on-failure
+
+  # ── Optional local Postgres (use when no Neon connection is available) ──
+  # Activate with: docker compose --profile local up
+  db:
+    image: postgres:16-alpine
+    profiles: ["local"]
+    environment:
+      POSTGRES_DB: emrdb
+      POSTGRES_USER: emr
+      POSTGRES_PASSWORD: emrpass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U emr -d emrdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

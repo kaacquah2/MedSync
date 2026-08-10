@@ -1,0 +1,493 @@
+.root {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 42fr 58fr;
+  background-color: var(--mist);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+}
+
+/* Left Brand Panel */
+.brand {
+  position: relative;
+  background: linear-gradient(135deg, var(--ink) 0%, #0E4A4B 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 3rem 4rem;
+  overflow: hidden;
+  color: #FFFFFF;
+}
+
+.brand::before,
+.brand::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.03);
+  pointer-events: none;
+}
+
+.brand::before {
+  width: 500px;
+  height: 500px;
+  top: -150px;
+  right: -150px;
+}
+
+.brand::after {
+  width: 300px;
+  height: 300px;
+  bottom: -100px;
+  left: -100px;
+}
+
+.logoContainer {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  z-index: 2;
+}
+
+.logoSquare {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  color: var(--gold);
+}
+
+.wordmark {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  line-height: 1.1;
+}
+
+.logoSubtitle {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.brandContent {
+  margin-top: auto;
+  margin-bottom: auto;
+  z-index: 2;
+  max-width: 480px;
+}
+
+.brandHeadline {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #FFFFFF;
+  line-height: 1.25;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.goldHighlight {
+  color: var(--gold);
+}
+
+.brandSubline {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.6;
+  margin-bottom: 2rem;
+}
+
+/* ECG Signature Animation */
+.ecgContainer {
+  margin-top: 1rem;
+  margin-bottom: 2rem;
+  width: 100%;
+}
+
+.ecgTrace {
+  width: 100%;
+  height: 50px;
+}
+
+@keyframes draw {
+  0% {
+    stroke-dashoffset: 1000;
+  }
+  50% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -1000;
+  }
+}
+
+.ecgTrace path {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: draw 4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ecgTrace path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Assurance Ledger */
+.assuranceLedger {
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  margin-top: 2rem;
+}
+
+.ledgerRow {
+  display: flex;
+  align-items: flex-start;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  gap: 1.5rem;
+}
+
+.ledgerLabel {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--gold);
+  letter-spacing: 0.1em;
+  width: 100px;
+  flex-shrink: 0;
+  padding-top: 0.1rem;
+}
+
+.ledgerValue {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.4;
+}
+
+.brandFooter {
+  margin-top: auto;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.45);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 1.5rem;
+  z-index: 2;
+}
+
+/* Form Column */
+.formCol {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  background-color: var(--mist);
+  overflow-y: auto;
+  min-height: 100vh;
+}
+
+/* Sign-In Card */
+.card {
+  background-color: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-login);
+  width: 100%;
+  max-width: 440px;
+  padding: 2.5rem;
+  box-shadow: 0 4px 20px rgba(11, 59, 60, 0.03);
+}
+
+.greeting {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.cardHeading {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+  margin-bottom: 0.5rem;
+}
+
+.cardSubline {
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 2rem;
+}
+
+/* Custom Input and Button overrides */
+.input {
+  font-family: 'Inter', sans-serif !important;
+  border-radius: var(--radius-login) !important;
+  border: 1px solid var(--line) !important;
+  background-color: var(--mist) !important;
+  height: 48px !important;
+  color: var(--text) !important;
+  transition: all 0.15s ease !important;
+}
+
+.input:focus-within,
+.input:focus {
+  border-color: var(--accent) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(23, 126, 111, 0.25) !important;
+}
+
+.inputMono {
+  font-family: 'IBM Plex Mono', monospace !important;
+  border-radius: var(--radius-login) !important;
+  border: 1px solid var(--line) !important;
+  background-color: var(--mist) !important;
+  height: 48px !important;
+  color: var(--text) !important;
+  transition: all 0.15s ease !important;
+}
+
+.inputMono:focus-within,
+.inputMono:focus {
+  border-color: var(--accent) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(23, 126, 111, 0.25) !important;
+}
+
+.input:-webkit-autofill,
+.input:-webkit-autofill:hover,
+.input:-webkit-autofill:focus,
+.inputMono:-webkit-autofill,
+.inputMono:-webkit-autofill:hover,
+.inputMono:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text) !important;
+  -webkit-box-shadow: 0 0 0px 1000px var(--mist) inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.checkboxInput {
+  border-radius: 4px !important;
+  border: 1px solid var(--line) !important;
+  cursor: pointer;
+}
+
+.checkboxInput:checked {
+  background-color: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+
+.checkboxInput:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(23, 126, 111, 0.25) !important;
+}
+
+.checkboxLabel {
+  font-size: 0.85rem !important;
+  color: var(--muted) !important;
+  cursor: pointer;
+}
+
+.forgotLink {
+  font-size: 0.85rem !important;
+  font-weight: 500 !important;
+  color: var(--accent) !important;
+  text-decoration: none !important;
+}
+
+.forgotLink:hover {
+  color: var(--accent-hover) !important;
+  text-decoration: underline !important;
+}
+
+.button {
+  font-family: 'Inter', sans-serif !important;
+  border-radius: var(--radius-login) !important;
+  background-color: var(--accent) !important;
+  color: #FFFFFF !important;
+  font-weight: 600 !important;
+  height: 48px !important;
+  transition: all 0.15s ease !important;
+  border: none !important;
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  background-color: var(--accent-hover) !important;
+}
+
+.button:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(23, 126, 111, 0.35) !important;
+}
+
+.button:disabled {
+  background-color: var(--line) !important;
+  color: var(--muted) !important;
+  cursor: not-allowed !important;
+}
+
+.buttonSubtle {
+  font-family: 'Inter', sans-serif !important;
+  color: var(--muted) !important;
+  font-weight: 500 !important;
+}
+
+.buttonSubtle:hover {
+  color: var(--text) !important;
+  background-color: rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Callouts */
+.callout2fa {
+  background-color: #EAF7F4 !important;
+  border: 1px solid #C4E8DF !important;
+  border-radius: var(--radius-login) !important;
+  padding: 1rem !important;
+}
+
+.callout2faText {
+  color: #0F5E52 !important;
+  font-size: 0.8rem !important;
+  line-height: 1.5 !important;
+}
+
+.switchUserBanner {
+  background-color: #FFF9E6 !important;
+  border: 1px solid #FFE7A3 !important;
+  border-radius: var(--radius-login) !important;
+  padding: 0.85rem 1rem !important;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.switchUserText {
+  font-size: 0.8rem !important;
+  color: #855C00 !important;
+  line-height: 1.4 !important;
+}
+
+.switchUserLink {
+  color: #B27B00 !important;
+  font-weight: 600 !important;
+  text-decoration: underline !important;
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  cursor: pointer;
+  font-size: 0.8rem !important;
+}
+
+.switchUserLink:hover {
+  color: #855C00 !important;
+}
+
+/* Dev details styles */
+.details {
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-login);
+  padding: 1rem;
+}
+
+.details summary {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+
+.details summary:hover {
+  color: var(--text);
+}
+
+.detailsNote {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-bottom: 0.85rem;
+}
+
+.chipGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.chip {
+  font-family: 'IBM Plex Mono', monospace !important;
+  font-size: 0.7rem !important;
+  border-radius: 8px !important;
+  padding: 0.35rem 0.5rem !important;
+  background-color: var(--mist) !important;
+  border: 1px solid var(--line) !important;
+  color: var(--text) !important;
+  cursor: pointer !important;
+  text-align: left !important;
+  transition: all 0.15s ease !important;
+}
+
+.chip:hover {
+  background-color: var(--line) !important;
+  border-color: var(--muted) !important;
+}
+
+.chipLabel {
+  font-weight: 600;
+  display: block;
+}
+
+.chipDesc {
+  font-size: 0.6rem;
+  color: var(--muted);
+  display: block;
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+  .root {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .brand {
+    padding: 1.5rem;
+    min-height: auto;
+    gap: 1rem;
+  }
+
+  .brandFooter {
+    display: none;
+  }
+
+  .brandContent {
+    display: none;
+  }
+
+  .formCol {
+    padding: 2rem 1.25rem;
+    min-height: auto;
+    align-items: flex-start;
+  }
+
+  .card {
+    padding: 1.5rem;
+  }
+}

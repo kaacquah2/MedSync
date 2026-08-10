@@ -1,0 +1,141 @@
+/* Redesigned Sidebar Nav Section */
+.navSectionLabel {
+  font-family: 'IBM Plex Mono', monospace !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  color: var(--muted) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
+  padding: 12px 10px 4px !important;
+  margin-top: 8px !important;
+}
+
+.navItem {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 8px 12px !important;
+  border-radius: var(--radius-login) !important;
+  color: var(--text) !important;
+  text-decoration: none !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  width: 100% !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  box-sizing: border-box !important;
+  border-left: 3px solid transparent !important;
+}
+
+.navItem:hover {
+  background-color: rgba(23, 126, 111, 0.05) !important;
+  color: var(--ink) !important;
+}
+
+.navItemActive {
+  background-color: rgba(23, 126, 111, 0.08) !important;
+  color: var(--accent) !important;
+  font-weight: 600 !important;
+  border-left: 3px solid var(--accent) !important;
+}
+
+.navItemActive svg {
+  color: var(--accent) !important;
+}
+
+.navItem svg {
+  color: var(--muted) !important;
+  transition: color 0.15s ease !important;
+}
+
+.navBadge {
+  margin-left: auto !important;
+  background-color: var(--danger) !important;
+  color: #fff !important;
+  font-family: 'IBM Plex Mono', monospace !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  padding: 1px 6px !important;
+  border-radius: 10px !important;
+  min-width: 18px !important;
+  text-align: center !important;
+}
+
+/* User chip button */
+.userChip {
+  padding: 4px 12px !important;
+  border-radius: var(--radius-login) !important;
+  border: 1px solid var(--line) !important;
+  background-color: var(--card) !important;
+  transition: all 0.15s ease !important;
+  cursor: pointer !important;
+}
+
+.userChip:hover {
+  background-color: var(--mist) !important;
+  border-color: var(--accent) !important;
+}
+
+/* Network Sync Status pulsing dot */
+.syncStatusDot {
+  width: 8px;
+  height: 8px;
+  background-color: var(--ok);
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 0 0 rgba(46, 139, 111, 0.4);
+  animation: pulse 1.8s infinite;
+  margin-left: 6px;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(46, 139, 111, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(46, 139, 111, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(46, 139, 111, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .syncStatusDot {
+    animation: none !important;
+  }
+}
+
+/* Shift progress bar tracker */
+.shiftTracker {
+  border-top: 1px solid var(--line);
+  padding: 12px 14px;
+}
+
+.shiftHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.shiftLabel {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.shiftTime {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+}

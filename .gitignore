@@ -1,0 +1,49 @@
+# Environment
+.env
+.env.tmp
+.env.local
+.env.*.local
+
+# Python
+*.pyc
+*.pyo
+__pycache__/
+*.egg-info/
+*.egg
+.eggs/
+dist/
+build/
+.venv/
+venv/
+env/
+.Python
+
+# Django
+staticfiles/
+media/
+db.sqlite3
+
+# Node / Frontend
+frontend/node_modules/
+node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+*.tsbuildinfo
+
+# Testing / Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+coverage/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
