@@ -1,0 +1,30 @@
+# Ruff — linter & formatter configuration
+# https://docs.astral.sh/ruff/
+
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "N",   # pep8-naming
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "N999",   # invalid module name (manage.py)
+    "B008",   # function calls in default args (common in Django)
+]
+
+[lint.per-file-ignores]
+"*/migrations/*.py" = ["E501", "I001", "N806"]  # auto-generated migrations
+"tests/*.py" = ["N802", "N803"]                  # test naming conventions
+
+[format]
+quote-style = "double"
+indent-style = "space"

@@ -1,0 +1,153 @@
+﻿
+> med-spa@1.0.0 lint
+> eslint src
+
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\__tests__\roles.test.ts
+  57:31  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\auth\MfaSetupPage.tsx
+   3:3   warning  'Badge' is defined but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+  25:3   warning  'IconDeviceMobile' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  35:10  warning  'uri' is assigned a value but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  57:19  warning  Unexpected any. Specify a different type                                            @typescript-eslint/no-explicit-any
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\components\ErrorBoundary.tsx
+  21:5  warning  Unexpected console statement  no-console
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\constants\routesConfig.ts
+  58:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\layout\AppLayout.tsx
+   22:3   warning  'NavLink' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+   34:10  warning  'notifications' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  106:10  warning  'toSentenceCase' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  147:9   warning  'isMobile' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\layout\NotificationDrawer.tsx
+  13:3   warning  'Divider' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+  31:3   warning  'IconX' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+  36:31  warning  'useCallback' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  71:7   warning  'TYPE_ICON' is assigned a value but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+  79:7   warning  'TYPE_COLOR' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\admin\ReportsPage.tsx
+   6:3   warning  'Progress' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+   8:3   warning  'Skeleton' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+  20:3   warning  'IconRefresh' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  27:10  warning  'ChartPanel' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  38:17  warning  'isLoading' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  38:28  warning  'refetch' is assigned a value but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\audit\AuditLogPage.tsx
+  23:20  warning  'useMemo' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\common\EmergencyQueuePage.tsx
+   55:7   warning  'TRIAGE_LABELS' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  156:20  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+  181:20  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\common\InteropPage.tsx
+  16:3  warning  'IconBrain' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+  20:3  warning  'IconShield' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\dashboard\DashboardPage.tsx
+   21:3   warning  'IconActivity' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+   29:3   warning  'IconClock' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+   30:3   warning  'IconPill' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+   31:3   warning  'IconFlask' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+   32:3   warning  'IconBed' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+   46:3   warning  'DashboardData' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  924:44  warning  Unexpected any. Specify a different type                                         @typescript-eslint/no-explicit-any
+  967:51  warning  Unexpected any. Specify a different type                                         @typescript-eslint/no-explicit-any
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\hospitals\HospitalListPage.tsx
+  60:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  72:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\lab\LabResultsPage.tsx
+  38:8  warning  'dayjs' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\nurse\MARPage.tsx
+   8:3   warning  'Badge' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  12:3   warning  'Skeleton' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  30:11  warning  'user' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\patients\AlertFormPage.tsx
+  38:42  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  41:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\patients\PatientDetailPage.tsx
+    13:3   warning  'Anchor' is defined but never used. Allowed unused vars must match /^_/u                      @typescript-eslint/no-unused-vars
+    25:3   warning  'ScrollArea' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
+    42:3   warning  'IconChevronDown' is defined but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+    43:3   warning  'IconClipboardList' is defined but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+    45:3   warning  'IconEdit' is defined but never used. Allowed unused vars must match /^_/u                    @typescript-eslint/no-unused-vars
+    48:3   warning  'IconPlus' is defined but never used. Allowed unused vars must match /^_/u                    @typescript-eslint/no-unused-vars
+    52:3   warning  'IconVaccine' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+    54:3   warning  'IconPrinter' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+    56:3   warning  'IconUsers' is defined but never used. Allowed unused vars must match /^_/u                   @typescript-eslint/no-unused-vars
+    81:48  warning  'Patient' is defined but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+    81:57  warning  'PatientAlert' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+    81:71  warning  'PatientDocument' is defined but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   113:10  warning  'fhirLoading' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+   119:50  warning  Unexpected any. Specify a different type                                                      @typescript-eslint/no-explicit-any
+   130:10  warning  'referralSpecialty' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   184:18  warning  Unexpected any. Specify a different type                                                      @typescript-eslint/no-explicit-any
+   226:18  warning  'handleFhirExport' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+   266:91  warning  Unexpected any. Specify a different type                                                      @typescript-eslint/no-explicit-any
+   553:56  warning  Unexpected any. Specify a different type                                                      @typescript-eslint/no-explicit-any
+   613:57  warning  Unexpected any. Specify a different type                                                      @typescript-eslint/no-explicit-any
+   983:30  warning  'nhid' is defined but never used. Allowed unused args must match /^_/u                        @typescript-eslint/no-unused-vars
+  1023:30  warning  'nhid' is defined but never used. Allowed unused args must match /^_/u                        @typescript-eslint/no-unused-vars
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\patients\PatientFormPage.tsx
+    4:3   warning  'Box' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+   46:11  warning  'user' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   97:57  warning  Unexpected any. Specify a different type                                         @typescript-eslint/no-explicit-any
+  102:37  warning  Unexpected any. Specify a different type                                         @typescript-eslint/no-explicit-any
+  112:19  warning  Unexpected any. Specify a different type                                         @typescript-eslint/no-explicit-any
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\patients\PatientSearchPage.tsx
+   4:3   warning  'Box' is defined but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+  24:10  warning  'useEffect' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  37:9   warning  'navigate' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\profile\ProfilePage.tsx
+   10:3   warning  'Divider' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+   37:3   warning  'regenerateCodes' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+   44:26  warning  'logout' is assigned a value but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+   45:9   warning  'navigate' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   92:19  warning  Unexpected any. Specify a different type                                             @typescript-eslint/no-explicit-any
+  111:19  warning  Unexpected any. Specify a different type                                             @typescript-eslint/no-explicit-any
+  123:19  warning  Unexpected any. Specify a different type                                             @typescript-eslint/no-explicit-any
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\receptionist\WaitingQueuePage.tsx
+  28:10  warning  'waitMinutes' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\records\EncounterDetailPage.tsx
+  31:10  warning  'useMutation' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  53:11  warning  'user' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\records\EncounterFormPage.tsx
+    9:3   warning  'Text' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  110:19  warning  Unexpected any. Specify a different type                                @typescript-eslint/no-explicit-any
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\staff\StaffListPage.tsx
+    4:3   warning  'Box' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+   24:10  warning  'useMutation' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  113:19  warning  Unexpected any. Specify a different type                                       @typescript-eslint/no-explicit-any
+  125:19  warning  Unexpected any. Specify a different type                                       @typescript-eslint/no-explicit-any
+  135:19  warning  Unexpected any. Specify a different type                                       @typescript-eslint/no-explicit-any
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\superadmin\AuditLogsPage.tsx
+  38:15  warning  'ChainNode' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\superadmin\BreakGlassReviewPage.tsx
+  18:3  warning  'TextInput' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\OSCARPACK\Downloads\mEd\frontend\src\pages\worklist\HandoverPage.tsx
+  19:3  warning  'TextInput' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+Γ£û 94 problems (0 errors, 94 warnings)
+

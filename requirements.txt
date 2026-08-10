@@ -1,0 +1,31 @@
+django>=4.2,<5.0
+psycopg[binary]>=3.1
+django-environ>=0.11
+cryptography>=42.0
+gunicorn>=21.2
+whitenoise[brotli]>=6.6
+Pillow>=10.0
+
+# Security hardening
+django-axes>=6.5
+
+# MFA (TOTP)
+django-otp>=1.4
+qrcode[pil]>=7.4
+
+# REST API
+djangorestframework>=3.15
+
+# AI assistant (Phase E)
+# Gemini provider — get a free API key at https://aistudio.google.com
+google-generativeai>=0.8
+# requests is used by the Ollama provider (local, no PHI egress)
+requests>=2.31
+
+# Redis client — required by Django's RedisCache backend (django.core.cache.backends.redis)
+# Set REDIS_URL in the environment to activate shared caching in production.
+redis>=4.0
+
+# FHIR R4 schema validation
+fhir.resources>=7.1.0,<8.0.0
+
