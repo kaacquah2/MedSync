@@ -41,6 +41,11 @@ jobs:
       - name: Check formatting with ruff
         run: ruff format --check .
 
+      - name: Check dependency vulnerabilities with pip-audit
+        run: |
+          pip install pip-audit
+          pip-audit --desc on -r requirements.txt || true
+
       - name: Run test suite
         env:
           DJANGO_SETTINGS_MODULE: emr.settings_test
@@ -84,6 +89,10 @@ jobs:
       - name: Type-check
         working-directory: frontend
         run: npm run typecheck
+
+      - name: Audit frontend dependencies
+        working-directory: frontend
+        run: npm audit --audit-level=high || true
 
       - name: Build
         working-directory: frontend

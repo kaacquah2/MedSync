@@ -95,25 +95,27 @@ class PatientSearchView(APIView):
                         seen.add(p.pk)
 
             if not patients or len(q) < 5:
-                # O(n) scan — capped at 200 to prevent unbounded memory use on large
-                # deployments.  Results are paginated further below.
-                if not request.user.is_admin_level:
-                    scan_qs = Patient.objects.filter(
-                        registered_at_hospital=request.user.hospital
-                    ).select_related("registered_at_hospital")[:200]
-                else:
-                    scan_qs = Patient.objects.select_related("registered_at_hospital")[:200]
-                q_lower = q.lower()
-                for p in scan_qs:
-                    if p.pk in seen:
-                        continue
-                    try:
-                        full = f"{p.first_name} {p.last_name}".lower()
-                        if q_lower in full:
+                from patients.models import generate_name_trigrams
+                
+                query_tokens = generate_name_trigrams(q, "")
+                if query_tokens:
+                    token_hashes = [make_blind_index(tok) for tok in query_tokens if tok]
+                    
+                    token_qs = Patient.objects.all()
+                    if not request.user.is_admin_level:
+                        token_qs = token_qs.filter(
+                            registered_at_hospital=request.user.hospital
+                        )
+                    
+                    for th in token_hashes:
+                        token_qs = token_qs.filter(search_tokens__token_hash=th)
+                    
+                    token_qs = token_qs.select_related("registered_at_hospital").distinct()
+                    
+                    for p in token_qs:
+                        if p.pk not in seen:
                             patients.append(p)
                             seen.add(p.pk)
-                    except Exception:
-                        pass
 
             if q:
                 import hashlib
@@ -380,7 +382,7 @@ class BreakGlassView(APIView):
             target=patient,
             patient=patient,
             is_cross_hospital=True,
-            extra={"reason": reason[:200], "expires_at": bg.expires_at.isoformat()},
+            extra={"expires_at": bg.expires_at.isoformat()},
         )
 
         return Response(

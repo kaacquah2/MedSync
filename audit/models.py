@@ -235,3 +235,24 @@ class AuditLogReview(models.Model):
 
     def __str__(self):
         return f"Review of AuditLog #{self.audit_log_id} by {self.reviewed_by.username if self.reviewed_by else 'Unknown'}"
+
+
+class AuditLogArchiveAnchor(models.Model):
+    """
+    Stores the cryptographic anchor and file validation properties for a pruned range
+    of historical audit logs archived in offline WORM storage.
+    """
+    archive_filename = models.CharField(max_length=255, unique=True)
+    last_row_pk = models.PositiveIntegerField(unique=True)
+    last_row_hash = models.CharField(max_length=64)
+    archive_file_hash = models.CharField(max_length=64)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        verbose_name = "Audit Log Archive Anchor"
+        verbose_name_plural = "Audit Log Archive Anchors"
+        ordering = ["last_row_pk"]
+
+    def __str__(self):
+        return f"ArchiveAnchor({self.archive_filename}, PK={self.last_row_pk})"
+

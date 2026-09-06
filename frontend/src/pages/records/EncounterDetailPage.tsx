@@ -273,7 +273,7 @@ export function EncounterDetailPage() {
             </Table.Thead>
             <Table.Tbody>
               {encounter.lab_results.map((lab) => (
-                <Table.Tr key={lab.id} bg={lab.is_abnormal ? "red.0" : undefined}>
+                <Table.Tr key={lab.id} bg={lab.is_abnormal ? "var(--bg-red)" : undefined}>
                   <Table.Td><Text fw={600}>{lab.test_name}</Text></Table.Td>
                   <Table.Td><Badge variant="light" size="sm" ff="monospace">{lab.loinc_code || "—"}</Badge></Table.Td>
                   <Table.Td>{lab.result_value}</Table.Td>

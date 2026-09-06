@@ -984,7 +984,7 @@ function RecentAuditTable({ entries }: { entries: AuditLogEntry[] }) {
           </Table.Thead>
           <Table.Tbody>
             {entries.map((entry) => (
-              <Table.Tr key={entry.id} bg={entry.is_cross_hospital ? "yellow.0" : undefined}>
+              <Table.Tr key={entry.id} bg={entry.is_cross_hospital ? "var(--bg-amber)" : undefined}>
                 <Table.Td>
                   <Text size="sm" fw={600}>{entry.actor_username}</Text>
                   <Text size="xs" c="dimmed">{entry.actor_role}</Text>

@@ -140,7 +140,7 @@ export function SuperAdminDashboard() {
                 {(data?.recent_audits ?? []).map((entry) => (
                   <Table.Tr
                     key={entry.id}
-                    bg={entry.is_cross_hospital ? "yellow.0" : undefined}
+                    bg={entry.is_cross_hospital ? "var(--bg-amber)" : undefined}
                   >
                     <Table.Td>
                       <Text size="sm" fw={600}>{entry.actor_username}</Text>

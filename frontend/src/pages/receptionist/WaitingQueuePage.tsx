@@ -178,8 +178,8 @@ export function WaitingQueuePage() {
                     <Table.Tr
                       key={appt.id}
                       bg={
-                        mins >= 60 ? "red.0"
-                        : mins >= 30 ? "orange.0"
+                        mins >= 60 ? "var(--bg-red)"
+                        : mins >= 30 ? "var(--bg-amber)"
                         : undefined
                       }
                     >

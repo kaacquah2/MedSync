@@ -225,7 +225,6 @@ class PatientDocumentListUploadView(APIView):
             patient=patient,
             extra={
                 "document_id": doc.pk,
-                "file_name": doc.original_name,
                 "file_size": doc.file_size,
             },
         )
@@ -275,7 +274,7 @@ class PatientDocumentDownloadView(APIView):
             action="DOWNLOAD_DOCUMENT",
             target=patient,
             patient=patient,
-            extra={"document_id": doc.pk, "file_name": doc.original_name},
+            extra={"document_id": doc.pk},
         )
         response = FileResponse(io.BytesIO(decrypted_bytes), content_type=doc.file_type or "application/octet-stream")
         safe_name = sanitize_filename(doc.original_name)
@@ -301,8 +300,7 @@ class PatientDocumentDeleteView(APIView):
             return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
 
         doc = get_object_or_404(PatientDocument, pk=pk, patient=patient)
-        file_name = doc.original_name
-
+        doc_id = doc.pk
         from django.db import transaction
         with transaction.atomic():
             if doc.file:
@@ -314,6 +312,6 @@ class PatientDocumentDeleteView(APIView):
             action="DELETE_DOCUMENT",
             target=patient,
             patient=patient,
-            extra={"file_name": file_name},
+            extra={"document_id": doc_id},
         )
         return Response(status=status.HTTP_204_NO_CONTENT)

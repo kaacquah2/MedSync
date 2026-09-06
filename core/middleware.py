@@ -145,3 +145,31 @@ class NoCachePHIMiddleware:
         # Set no-store so the browser neither caches nor serves from cache
         response["Cache-Control"] = "no-store"
         return response
+
+
+class ContentSecurityPolicyMiddleware:
+    """
+    Sets Content-Security-Policy (CSP) and security headers on responses.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+
+        if "Content-Security-Policy" not in response:
+            csp = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline'; "
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                "font-src 'self' https://fonts.gstatic.com data:; "
+                "img-src 'self' data: blob:; "
+                "connect-src 'self'; "
+                "frame-ancestors 'none'; "
+                "object-src 'none'; "
+                "base-uri 'self';"
+            )
+            response["Content-Security-Policy"] = csp
+
+        return response

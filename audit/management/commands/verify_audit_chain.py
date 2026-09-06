@@ -103,13 +103,65 @@ class Command(BaseCommand):
             .order_by("pk")
         )
 
+        import os
+        import hashlib
+        from django.conf import settings
+        from audit.models import AuditLogArchiveAnchor
+
+        self.stdout.write("Verifying WORM archive file system anchors...")
+        archive_breaks = 0
+
+        with rls_bypass():
+            anchors = list(AuditLogArchiveAnchor.objects.order_by("last_row_pk"))
+
+        for anchor in anchors:
+            archive_dir = os.path.join(settings.MEDIA_ROOT, "audit_archives")
+            file_path = os.path.join(archive_dir, anchor.archive_filename)
+
+            if not os.path.exists(file_path):
+                self.stderr.write(
+                    self.style.ERROR(
+                        f"ARCHIVE ERROR: File '{anchor.archive_filename}' not found for anchor PK={anchor.last_row_pk}."
+                    )
+                )
+                archive_breaks += 1
+                continue
+
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            computed_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+            if computed_hash != anchor.archive_file_hash:
+                self.stderr.write(
+                    self.style.ERROR(
+                        f"ARCHIVE CORRUPTION: File '{anchor.archive_filename}' hash mismatch!\n"
+                        f"  stored  : {anchor.archive_file_hash}\n"
+                        f"  computed: {computed_hash}"
+                    )
+                )
+                archive_breaks += 1
+            else:
+                if verbose:
+                    self.stdout.write(f"  OK archive '{anchor.archive_filename}' verified.")
+
         total = 0
-        breaks = 0
+        breaks = archive_breaks
         prev_row_hash = None
 
         # audit_auditlog has FORCE ROW LEVEL SECURITY; management commands run
         # without a request context so we need the explicit bypass.
         with rls_bypass():
+            first_db_row = queryset.first()
+            if first_db_row:
+                latest_anchor = AuditLogArchiveAnchor.objects.filter(last_row_pk__lt=first_db_row.pk).order_by("-last_row_pk").first()
+                if latest_anchor:
+                    prev_row_hash = latest_anchor.last_row_hash
+                    self.stdout.write(
+                        self.style.SUCCESS(
+                            f"Anchoring database validation to WORM archive PK={latest_anchor.last_row_pk} hash={prev_row_hash[:12]}…"
+                        )
+                    )
+
             for entry in queryset.iterator(chunk_size=1000):
                 total += 1
                 if prev_row_hash is None:

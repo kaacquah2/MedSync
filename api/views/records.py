@@ -321,6 +321,10 @@ class MedicationAdministrationUpdateStatusView(APIView):
 
         admin = get_object_or_404(MedicationAdministration, pk=pk)
 
+        patient = admin.prescription.encounter.patient
+        if not can_access_patient(request.user, patient):
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+
         new_status = request.data.get("status")
         valid = [s[0] for s in MedicationAdministration.Status.choices]
         if new_status not in valid:
@@ -349,7 +353,6 @@ class MedicationAdministrationUpdateStatusView(APIView):
             patient=admin.prescription.encounter.patient,
             extra={
                 "new_status": new_status,
-                "drug_name": admin.prescription.drug_name,
                 "administered_by": request.user.username if new_status == MedicationAdministration.Status.GIVEN else None,
             },
         )

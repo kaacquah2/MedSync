@@ -6,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api.permissions import CanManageWards
+from api.permissions import CanManageWards, has_hospital_access
 from hospitals.models import Bed, Ward
 
 
@@ -118,6 +118,9 @@ class BedStatusView(APIView):
 
     def patch(self, request, pk):
         bed = get_object_or_404(Bed, pk=pk)
+        if not has_hospital_access(request.user, bed.ward.hospital):
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+
         new_status = request.data.get("status")
         valid = [s[0] for s in Bed.Status.choices]
         if new_status not in valid:

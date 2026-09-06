@@ -53,6 +53,38 @@ class MatchResult:
     message: str = ""
 
 
+def soundex(text: str) -> str:
+    """Return Soundex codes for words in text."""
+    words = text.split()
+    codes = []
+    mapping = {
+        "B": "1", "F": "1", "P": "1", "V": "1",
+        "C": "2", "G": "2", "J": "2", "K": "2", "Q": "2", "S": "2", "X": "2", "Z": "2",
+        "D": "3", "T": "3",
+        "L": "4",
+        "M": "5", "N": "5",
+        "R": "6",
+    }
+    for word in words:
+        clean = "".join(c.upper() for c in word if c.isalpha())
+        if not clean:
+            continue
+        first = clean[0]
+        res = [first]
+        prev = mapping.get(first, "")
+        for char in clean[1:]:
+            digit = mapping.get(char, "")
+            if digit and digit != prev:
+                res.append(digit)
+                if len(res) == 4:
+                    break
+            prev = digit
+        while len(res) < 4:
+            res.append("0")
+        codes.append("".join(res))
+    return " ".join(codes)
+
+
 def match_patient(
     national_id: str = "",
     name: str = "",
@@ -122,5 +154,25 @@ def match_patient(
                     "Review before creating a new patient."
                 ),
             )
+
+        # Phonetic (Soundex) fallback if exact blind index misses
+        if dob.strip():
+            target_soundex = soundex(name.strip())
+            phonetic_matches = []
+            for p in Patient.objects.all().select_related("registered_at_hospital"):
+                if str(p.date_of_birth or "").strip() == dob.strip():
+                    p_full_name = f"{p.first_name} {p.last_name}".strip()
+                    if soundex(p_full_name) == target_soundex:
+                        phonetic_matches.append(p)
+            if phonetic_matches:
+                return MatchResult(
+                    confidence="probable",
+                    candidates=phonetic_matches,
+                    message=(
+                        f"Phonetic name + date-of-birth match "
+                        f"{len(phonetic_matches)} existing record(s). "
+                        "Review before creating a new patient."
+                    ),
+                )
 
     return MatchResult(confidence="no_match", message="No existing patient found.")

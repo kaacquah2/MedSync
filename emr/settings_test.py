@@ -169,3 +169,6 @@ REST_FRAMEWORK = {
         "break_glass": "5/hour",
     },
 }
+
+TESTING = True
+

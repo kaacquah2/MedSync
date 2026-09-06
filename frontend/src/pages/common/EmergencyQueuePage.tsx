@@ -280,7 +280,7 @@ export function EmergencyQueuePage() {
                   const isClinical = user?.role === "doctor" || user?.role === "nurse";
 
                   return (
-                    <Table.Tr key={appt.id} bg={triage.level === "RED" ? "red.0" : triage.level === "ORANGE" ? "orange.0" : undefined}>
+                    <Table.Tr key={appt.id} bg={triage.level === "RED" ? "var(--bg-red)" : triage.level === "ORANGE" ? "var(--bg-amber)" : undefined}>
                       <Table.Td>
                         <Badge color={color} variant="filled" fullWidth size="md">
                           {triage.level}

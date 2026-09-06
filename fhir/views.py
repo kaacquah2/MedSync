@@ -21,12 +21,27 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET
+from rest_framework.throttling import ScopedRateThrottle
 
 from access.permissions import can_access_patient
 from audit.utils import log_action
 from patients.models import Patient
 
 from .mappers import patient_everything, patient_to_fhir
+
+
+def _check_fhir_throttle(request, scope: str):
+    """Check ScopedRateThrottle for function-based FHIR view."""
+    throttle = ScopedRateThrottle()
+    throttle.scope = scope
+    if not throttle.allow_request(request, None):
+        wait = throttle.wait()
+        return False, _fhir_error(
+            429,
+            "throttled",
+            f"Rate limit exceeded. Try again in {int(wait or 60)} seconds.",
+        )
+    return True, None
 
 
 def _fhir_json(data, status=200) -> JsonResponse:
@@ -142,6 +157,10 @@ def patient_resource(request, universal_id: str) -> JsonResponse:
     Returns the FHIR R4 Patient resource for the given NHID.
     Access-gated by RBAC + break-glass logic; every fetch is audited.
     """
+    throttled, error_response = _check_fhir_throttle(request, "fhir_resource")
+    if not throttled:
+        return error_response
+
     patient = get_object_or_404(Patient, universal_id=universal_id)
 
     authorized, error_response = _check_fhir_authorization(request, patient)
@@ -175,6 +194,10 @@ def patient_everything_endpoint(request, universal_id: str) -> JsonResponse:
     Patient + Encounters + Conditions + MedicationRequests + Observations.
     Access-gated by RBAC + break-glass logic; every fetch is audited.
     """
+    throttled, error_response = _check_fhir_throttle(request, "fhir_everything")
+    if not throttled:
+        return error_response
+
     patient = get_object_or_404(Patient, universal_id=universal_id)
 
     authorized, error_response = _check_fhir_authorization(request, patient)

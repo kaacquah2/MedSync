@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from access.permissions import can_access_patient
-from api.permissions import CanManageReferrals
+from api.permissions import CanManageReferrals, has_hospital_access
 from audit.utils import log_action
 from referrals.models import Referral
 
@@ -151,6 +151,9 @@ class ReferralStatusView(APIView):
 
     def patch(self, request, pk):
         referral = get_object_or_404(Referral, pk=pk)
+        if not has_hospital_access(request.user, [referral.from_hospital, referral.to_hospital]):
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+
         new_status = request.data.get("status")
         notes = request.data.get("status_notes", "")
 

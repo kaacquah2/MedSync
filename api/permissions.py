@@ -235,3 +235,49 @@ class BreakGlassThrottle(UserRateThrottle):
     """
     rate = "5/hour"
 
+
+def has_hospital_access(user, targets) -> bool:
+    """
+    Check if user has hospital-scoped access to target hospital(s).
+
+    Parameters
+    ----------
+    user : User instance
+    targets : Hospital instance, Hospital ID, None, or iterable thereof.
+
+    Returns True if:
+      1. user is authenticated AND super_admin (or is_superuser)
+      2. user is authenticated, has a non-null user.hospital, and user.hospital
+         matches any valid non-null target in `targets`.
+    Returns False otherwise.
+    """
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+
+    if _has_role(user, "super_admin") or getattr(user, "is_superuser", False):
+        return True
+
+    user_hospital = getattr(user, "hospital", None)
+    if user_hospital is None:
+        return False
+
+    user_hospital_id = getattr(user_hospital, "pk", user_hospital)
+
+    if targets is None:
+        return False
+
+    if not isinstance(targets, (list, tuple, set)):
+        targets_list = [targets]
+    else:
+        targets_list = list(targets)
+
+    for target in targets_list:
+        if target is None:
+            continue
+        target_id = getattr(target, "pk", target)
+        if user_hospital_id == target_id:
+            return True
+
+    return False
+
+

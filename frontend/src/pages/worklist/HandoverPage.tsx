@@ -128,7 +128,7 @@ export function HandoverPage() {
           </Group>
           <Stack gap="sm">
             {pendingHandovers.map((h) => (
-              <Card key={h.id} withBorder radius="sm" p="md" bg="orange.0">
+              <Card key={h.id} withBorder radius="sm" p="md" bg="var(--bg-amber)">
                 <Group justify="space-between" mb="xs">
                   <Group gap="xs">
                     <Text size="sm" fw={600}>{h.from_user_name}</Text>

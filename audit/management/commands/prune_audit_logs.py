@@ -56,8 +56,69 @@ class Command(BaseCommand):
 
         from django.db import connection
 
+        import hashlib
+        import json
+        import os
+        from django.conf import settings
+        from audit.models import AuditLogArchiveAnchor
+
         with rls_bypass():
+            # Fetch entries to delete in order of PK
+            targets = list(AuditLog.objects.filter(timestamp__lt=cutoff).order_by("pk"))
+
+            if not targets:
+                self.stdout.write("No logs matched the cutoff criteria at pruning time.")
+                return
+
+            last_target = targets[-1]
+            last_pk = last_target.pk
+            last_hash = last_target.row_hash
+
+            # Serialize to file in media root
+            archive_dir = os.path.join(settings.MEDIA_ROOT, "audit_archives")
+            os.makedirs(archive_dir, exist_ok=True)
+
+            start_ts = targets[0].timestamp.strftime("%Y%m%d_%H%M%S")
+            end_ts = last_target.timestamp.strftime("%Y%m%d_%H%M%S")
+            filename = f"audit_archive_{start_ts}_to_{end_ts}_pk_{targets[0].pk}_to_{last_pk}.json"
+            file_path = os.path.join(archive_dir, filename)
+
+            data_list = []
+            for entry in targets:
+                data_list.append({
+                    "pk": entry.pk,
+                    "actor_username": entry.actor_username,
+                    "actor_role": entry.actor_role,
+                    "actor_hospital": entry.actor_hospital,
+                    "action": entry.action,
+                    "timestamp": entry.timestamp.isoformat() if entry.timestamp else "",
+                    "target_type": entry.target_type,
+                    "target_id": entry.target_id,
+                    "patient_nhid": entry.patient_nhid,
+                    "is_cross_hospital": entry.is_cross_hospital,
+                    "ip_address": entry.ip_address,
+                    "user_agent": entry.user_agent,
+                    "extra": entry.extra,
+                    "prev_hash": entry.prev_hash,
+                    "row_hash": entry.row_hash,
+                })
+
+            json_content = json.dumps(data_list, indent=2, sort_keys=True)
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(json_content)
+
+            file_hash = hashlib.sha256(json_content.encode("utf-8")).hexdigest()
+
             with transaction.atomic():
+                # Save the validation anchor
+                AuditLogArchiveAnchor.objects.create(
+                    archive_filename=filename,
+                    last_row_pk=last_pk,
+                    last_row_hash=last_hash,
+                    archive_file_hash=file_hash,
+                )
+
+                # Delete the database entries
                 with connection.cursor() as cursor:
                     if connection.vendor == "postgresql":
                         cursor.execute("ALTER TABLE audit_auditlog DISABLE TRIGGER trg_audit_log_immutable")
@@ -78,7 +139,9 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"Successfully pruned {deleted} audit log entries.\n"
-                "Chain Continuity Preserved: Remaining entries anchor to the first remaining row's previous hash."
+                f"Successfully archived and pruned {deleted} audit log entries.\n"
+                f"WORM archive saved: media/audit_archives/{filename}\n"
+                "Chain Continuity Preserved: Verification will anchor to this archive's final row hash."
             )
         )
+

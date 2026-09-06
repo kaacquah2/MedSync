@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from api.permissions import CanManageShifts
+from api.permissions import CanManageShifts, has_hospital_access
 from audit.utils import log_action
 from shifts.models import Handover, ShiftRecord
 
@@ -139,6 +139,9 @@ class ShiftEndView(APIView):
                 {"error": "You can only end your own shift."}, status=status.HTTP_403_FORBIDDEN
             )
 
+        if not has_hospital_access(request.user, shift.user.hospital):
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+
         if shift.ended_at:
             return Response({"error": "Shift already ended."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -182,6 +185,18 @@ class HandoverAcknowledgeView(APIView):
 
     def patch(self, request, pk):
         handover = get_object_or_404(Handover, pk=pk)
+        allowed_hospitals = [
+            h
+            for h in [
+                getattr(handover.from_user, "hospital", None),
+                getattr(handover.to_user, "hospital", None) if handover.to_user else None,
+                getattr(handover.ward, "hospital", None) if handover.ward else None,
+            ]
+            if h is not None
+        ]
+        if not has_hospital_access(request.user, allowed_hospitals):
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+
         if handover.acknowledged_at:
             return Response(HandoverSerializer(handover).data)
         handover.acknowledged_by = request.user
