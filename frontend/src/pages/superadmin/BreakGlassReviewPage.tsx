@@ -172,7 +172,7 @@ export function BreakGlassReviewPage() {
                 {filtered.map((e) => {
                   const isRev = !!e.is_reviewed;
                   return (
-                    <Table.Tr key={e.id} bg={isRev ? undefined : "red.0"}>
+                    <Table.Tr key={e.id} bg={isRev ? undefined : "var(--bg-red)"}>
                       <Table.Td>
                         <Text size="sm" fw={600}>{e.actor_username}</Text>
                         <Text size="xs" c="dimmed">{e.actor_role}</Text>

@@ -146,6 +146,23 @@ class Patient(TimeStampedModel):
 
         super().save(*args, **kwargs)
 
+        try:
+            tokens = generate_name_trigrams(self.first_name, self.last_name)
+            existing_tokens = set(self.search_tokens.values_list("token_hash", flat=True))
+            new_hashes = {make_blind_index(tok) for tok in tokens if tok}
+
+            to_delete = existing_tokens - new_hashes
+            if to_delete:
+                self.search_tokens.filter(token_hash__in=to_delete).delete()
+
+            to_add = new_hashes - existing_tokens
+            if to_add:
+                PatientSearchToken.objects.bulk_create([
+                    PatientSearchToken(patient=self, token_hash=h) for h in to_add
+                ])
+        except Exception:
+            pass
+
     def __str__(self):
         # Encrypted fields decrypt transparently on attribute access
         return f"{self.first_name} {self.last_name} ({self.universal_id})"
@@ -227,3 +244,37 @@ class PatientAlert(TimeStampedModel):
     def is_high_risk(self) -> bool:
         """True for severe or life-threatening alerts — shown in red."""
         return self.severity in (self.Severity.SEVERE, self.Severity.LIFE_THREAT)
+
+
+class PatientSearchToken(models.Model):
+    """
+    Stores HMAC-SHA256 blind indexed trigrams of patient names.
+    Enables secure, indexed partial name lookups without sequential O(N) table scans.
+    """
+    patient = models.ForeignKey(Patient, on_delete=models.CASCADE, related_name="search_tokens")
+    token_hash = models.CharField(max_length=64, db_index=True)
+
+    class Meta:
+        unique_together = ("patient", "token_hash")
+        verbose_name = "Patient Search Token"
+        verbose_name_plural = "Patient Search Tokens"
+
+    def __str__(self):
+        return f"SearchToken(Patient={self.patient.universal_id}, Hash={self.token_hash[:12]}…)"
+
+
+def generate_name_trigrams(first_name: str, last_name: str) -> set[str]:
+    """Generate the set of name trigrams (and short words) for search indexing."""
+    fn = str(first_name or "").strip().lower()
+    ln = str(last_name or "").strip().lower()
+    full = f"{fn} {ln}".strip()
+    words = [w for w in full.split() if w]
+    tokens = set()
+    for word in words:
+        if len(word) < 3:
+            tokens.add(word)
+        else:
+            for i in range(len(word) - 2):
+                tokens.add(word[i:i+3])
+    return tokens
+

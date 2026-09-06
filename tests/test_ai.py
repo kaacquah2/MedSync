@@ -341,8 +341,11 @@ class TestAIQueryAuditLogging:
         assert resp.status_code == 200
         audit_entry = AuditLog.objects.filter(action="AI_QUERY", patient_nhid=patient_a.universal_id).latest("id")
 
-        assert audit_entry.extra["question"] == "What is the temperature?"
+        assert "question" not in audit_entry.extra
         assert "question_hash" in audit_entry.extra
+        import hashlib
+        expected_hash = hashlib.sha256("What is the temperature?".encode("utf-8")).hexdigest()
+        assert audit_entry.extra["question_hash"] == expected_hash
         retrieved = audit_entry.extra["retrieved_records"]
         assert enc.id in retrieved["encounter_ids"]
         assert v.id in retrieved["vital_ids"]

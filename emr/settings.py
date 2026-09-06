@@ -92,6 +92,7 @@ MIDDLEWARE = [
     "audit.middleware.AuditMiddleware",  # must come after auth
     "accounts.mfa_middleware.MFAEnforcementMiddleware",  # tiered MFA gate
     "core.middleware.NoCachePHIMiddleware",  # Cache-Control: no-store on PHI pages
+    "core.middleware.ContentSecurityPolicyMiddleware",  # Content-Security-Policy header
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -289,6 +290,8 @@ REST_FRAMEWORK = {
         # Break-glass is a high-sensitivity action — cap at 5 per hour to limit
         # abuse by a compromised or rogue account.
         "break_glass": "5/hour",
+        "fhir_everything": "20/minute",
+        "fhir_resource": "60/minute",
     },
 }
 

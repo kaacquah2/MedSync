@@ -101,7 +101,6 @@ class PatientAIQueryView(APIView):
             patient=patient,
             target=patient,
             extra={
-                "question": question,
                 "question_hash": hashed_question,
                 "retrieved_records": result.get("retrieved_records", {}),
                 "provider": result.get("provider"),

@@ -32,8 +32,14 @@
   color: var(--ink) !important;
 }
 
+:global([data-mode="dark"]) .navItem:hover,
+:global([data-mantine-color-scheme="dark"]) .navItem:hover {
+  background-color: rgba(47, 164, 143, 0.06) !important;
+  color: var(--text) !important;
+}
+
 .navItemActive {
-  background-color: rgba(23, 126, 111, 0.08) !important;
+  background-color: var(--bg-blue) !important;
   color: var(--accent) !important;
   font-weight: 600 !important;
   border-left: 3px solid var(--accent) !important;

@@ -29,13 +29,9 @@ export function roleHome(role: Role): string {
     case "super_admin":
       return "/superadmin";
     case "hospital_admin":
-      // TODO: No separate admin console route exists, fallback to default dashboard at "/"
-      return "/";
     case "doctor":
-      // TODO: No separate clinical dashboard (patient list / consultations) route exists, fallback to default dashboard at "/"
-      return "/";
     case "nurse":
-      // TODO: No separate ward view / vitals queue route exists, fallback to default dashboard at "/"
+      // Primary clinical & facility management dashboard at "/"
       return "/";
     case "lab_technician":
       return "/lab/orders";

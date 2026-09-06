@@ -83,11 +83,11 @@
   --accent-blue:   var(--accent);
   --bg-blue:       rgba(47, 164, 143, 0.12);
   --accent-green:  var(--ok);
-  --bg-green:      #0E332B;
+  --bg-green:      rgba(56, 217, 169, 0.15);
   --accent-amber:  var(--gold);
-  --bg-amber:      #332D19;
+  --bg-amber:      rgba(224, 180, 90, 0.15);
   --accent-red:    var(--danger);
-  --bg-red:        #371D1A;
+  --bg-red:        rgba(229, 107, 85, 0.15);
 
   /* Overwrite Mantine variables */
   --mantine-color-body: var(--mist);

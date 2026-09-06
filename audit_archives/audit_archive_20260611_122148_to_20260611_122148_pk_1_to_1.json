@@ -1,0 +1,19 @@
+[
+  {
+    "action": "LOGIN",
+    "actor_hospital": "Hospital A (HSPA)",
+    "actor_role": "doctor",
+    "actor_username": "doctor_a",
+    "extra": {},
+    "ip_address": "127.0.0.1",
+    "is_cross_hospital": false,
+    "patient_nhid": "",
+    "pk": 1,
+    "prev_hash": "",
+    "row_hash": "c4da8e50fd50f8d7d6c7f31213537df6c5793cdc4f7ba36dc79c99257ef596d8",
+    "target_id": "",
+    "target_type": "",
+    "timestamp": "2026-06-11T12:21:48.479685+00:00",
+    "user_agent": ""
+  }
+]

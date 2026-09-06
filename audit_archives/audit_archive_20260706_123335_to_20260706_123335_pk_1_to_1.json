@@ -1,0 +1,19 @@
+[
+  {
+    "action": "ACCESS_PATIENT",
+    "actor_hospital": "Hospital A",
+    "actor_role": "doctor",
+    "actor_username": "old_user",
+    "extra": {},
+    "ip_address": null,
+    "is_cross_hospital": false,
+    "patient_nhid": "",
+    "pk": 1,
+    "prev_hash": "",
+    "row_hash": "xyz",
+    "target_id": "",
+    "target_type": "",
+    "timestamp": "2026-07-06T12:33:35.056684+00:00",
+    "user_agent": ""
+  }
+]

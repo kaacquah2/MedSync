@@ -110,9 +110,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.clear();
     queryClient.resetQueries();
 
+    // Preserve non-PHI UI preferences (theme) across session clear
+    const theme = localStorage.getItem("mEd-theme");
+
     // Clear persistent browser storage (PHI protection)
     localStorage.clear();
     sessionStorage.clear();
+
+    if (theme) {
+      localStorage.setItem("mEd-theme", theme);
+    }
 
     navigate("/login", { replace: true });
   }
