@@ -20,7 +20,7 @@ djangorestframework>=3.15,<4.0
 # Gemini provider — get a free API key at https://aistudio.google.com
 google-generativeai>=0.8,<1.0
 # requests is used by the Ollama provider (local, no PHI egress)
-requests>=2.31,<3.0
+requests>=2.34.2,<3.0
 
 # Redis client — required by Django's RedisCache backend (django.core.cache.backends.redis)
 # Set REDIS_URL in the environment to activate shared caching in production.
