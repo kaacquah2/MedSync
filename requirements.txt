@@ -24,7 +24,7 @@ requests>=2.31,<3.0
 
 # Redis client — required by Django's RedisCache backend (django.core.cache.backends.redis)
 # Set REDIS_URL in the environment to activate shared caching in production.
-redis>=4.0,<6.0
+redis>=8.1.0,<9.0
 
 # FHIR R4 schema validation
 fhir.resources>=7.1.0,<8.0.0
