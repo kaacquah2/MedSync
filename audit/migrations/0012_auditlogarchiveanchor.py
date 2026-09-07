@@ -5,26 +5,30 @@ import django.utils.timezone
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('audit', '0011_auditlog_audit_log_hosp_ts_idx_and_more'),
+        ("audit", "0011_auditlog_audit_log_hosp_ts_idx_and_more"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='AuditLogArchiveAnchor',
+            name="AuditLogArchiveAnchor",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('archive_filename', models.CharField(max_length=255, unique=True)),
-                ('last_row_pk', models.PositiveIntegerField(unique=True)),
-                ('last_row_hash', models.CharField(max_length=64)),
-                ('archive_file_hash', models.CharField(max_length=64)),
-                ('created_at', models.DateTimeField(default=django.utils.timezone.now)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                ("archive_filename", models.CharField(max_length=255, unique=True)),
+                ("last_row_pk", models.PositiveIntegerField(unique=True)),
+                ("last_row_hash", models.CharField(max_length=64)),
+                ("archive_file_hash", models.CharField(max_length=64)),
+                ("created_at", models.DateTimeField(default=django.utils.timezone.now)),
             ],
             options={
-                'verbose_name': 'Audit Log Archive Anchor',
-                'verbose_name_plural': 'Audit Log Archive Anchors',
-                'ordering': ['last_row_pk'],
+                "verbose_name": "Audit Log Archive Anchor",
+                "verbose_name_plural": "Audit Log Archive Anchors",
+                "ordering": ["last_row_pk"],
             },
         ),
     ]

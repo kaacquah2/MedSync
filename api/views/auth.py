@@ -48,23 +48,70 @@ class MeView(APIView):
         allowed = {"first_name", "last_name", "phone", "bio", "email"}
         data = {k: v for k, v in request.data.items() if k in allowed}
 
+        user = request.user
+        email_changed = False
+
         # Validate email format if provided
         if "email" in data:
             from django.core.exceptions import ValidationError as DjangoValidationError
             from django.core.validators import validate_email
 
-            try:
-                validate_email(data["email"])
-            except DjangoValidationError:
-                return Response(
-                    {"error": "Enter a valid email address."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+            new_email = (data["email"] or "").strip()
+            old_email = (user.email or "").strip()
+            if new_email.lower() != old_email.lower():
+                try:
+                    validate_email(new_email)
+                except DjangoValidationError:
+                    return Response(
+                        {"error": "Enter a valid email address."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
-        user = request.user
+                password = request.data.get("current_password") or request.data.get("password")
+                if not password:
+                    return Response(
+                        {"error": "Current password is required to change email address."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                if not user.check_password(password):
+                    return Response(
+                        {"error": "Current password is incorrect."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                email_changed = True
+                data["email"] = new_email
+            else:
+                data.pop("email", None)
+
+        if not data:
+            return Response(MeSerializer(user, context={"request": request}).data)
+
         for attr, value in data.items():
             setattr(user, attr, value)
         user.save(update_fields=list(data.keys()))
+
+        extra = {
+            "target_user": user.username,
+            "updated_fields": list(data.keys()),
+            "email_changed": email_changed,
+            "via": "api",
+        }
+        if email_changed:
+            parts = new_email.split("@")
+            masked = (
+                f"{parts[0][0]}***{parts[0][-1]}@{parts[1]}"
+                if len(parts) == 2 and len(parts[0]) > 2
+                else new_email
+            )
+            extra["new_email"] = masked
+
+        log_action(
+            request,
+            action="STAFF_UPDATED",
+            target=user,
+            extra=extra,
+        )
+
         return Response(MeSerializer(user, context={"request": request}).data)
 
 
@@ -93,7 +140,12 @@ class LoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        user = authenticate(request, username=username, password=password)
+        http_request = getattr(request, "_request", request)
+        user = authenticate(http_request, username=username, password=password)
+        if getattr(request, "axes_locked_out", False):
+            http_request.axes_locked_out = True
+            http_request.axes_credentials = getattr(request, "axes_credentials", None)
+
         if user is None:
             # axes already incremented failure count via authenticate()
             return Response(

@@ -150,3 +150,14 @@ def client_as_receptionist(client, receptionist_a):
 def client_as_sysadmin(client, sys_admin):
     client.force_login(sys_admin)
     return client
+
+
+@pytest.fixture(autouse=True)
+def clean_media_root(tmp_path, monkeypatch):
+    import os
+
+    from django.conf import settings
+
+    test_media = str(tmp_path / "media")
+    os.makedirs(test_media, exist_ok=True)
+    monkeypatch.setattr(settings, "MEDIA_ROOT", test_media)

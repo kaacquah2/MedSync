@@ -4,11 +4,13 @@ Central patient-record access authorization.
 A single function — can_access_patient() — is the chokepoint for all
 inter-hospital record access decisions.  Views call it and act on the result.
 
-Access is granted when ANY of the following is true:
-  1. admin      — SYSTEM_ADMIN or HOSPITAL_ADMIN (unrestricted read)
-  2. same_hospital — clinician's home hospital == patient's registering hospital
-  3. treatment_relationship — an active TreatmentRelationship exists
-  4. break_glass — an unexpired BreakGlassAccess grant exists
+Access evaluation order (break-glass deliberately overrides consent):
+  1. admin                  — SYSTEM_ADMIN or HOSPITAL_ADMIN (unrestricted read)
+  2. break_glass            — unexpired BreakGlassAccess grant (emergency override)
+  3. consent-revoked        — explicitly revoked PatientConsent denies access
+  4. same_hospital          — clinician's home hospital == patient's registering hospital
+  5. treatment_relationship — active TreatmentRelationship exists
+  6. consent-granted        — active PatientConsent exists
 
 Otherwise: denied.
 
@@ -47,8 +49,8 @@ def can_access_patient(user, patient) -> AccessDecision:
     """
     Return an AccessDecision describing whether *user* may access *patient*.
 
-    Evaluates gates in priority order (cheapest first):
-      admin → same_hospital → treatment_relationship → break_glass → denied
+    Evaluates gates in priority order:
+      admin → break_glass → consent-revoked → same_hospital → treatment_relationship → consent-granted → denied
 
     FAIL-CLOSED: any unexpected exception (DB error, attribute error, etc.)
     returns AccessDecision(allowed=False, basis="error") and logs the error.

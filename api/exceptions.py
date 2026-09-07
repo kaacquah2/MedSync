@@ -1,9 +1,14 @@
 """Custom DRF exception handler — wraps default handler for consistent JSON shape."""
 
+import logging
+
+from django.conf import settings
 from rest_framework import status
 from rest_framework.exceptions import NotAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
+
+logger = logging.getLogger(__name__)
 
 
 def emr_exception_handler(exc, context):
@@ -25,8 +30,6 @@ def emr_exception_handler(exc, context):
         if isinstance(exc, NotAuthenticated):
             response.status_code = 401
 
-        data = response.data
-        # Normalise DRF's varying shapes to { error, status_code }
         data = response.data
         # Normalise DRF's varying shapes to include status_code
         if isinstance(data, dict):
@@ -50,11 +53,12 @@ def emr_exception_handler(exc, context):
                 "status_code": response.status_code,
             }
     else:
-        # Unhandled exception — return 500
+        logger.exception("Unhandled API exception", exc_info=exc)
+        if settings.DEBUG:
+            raise exc
         response = Response(
             {"error": "An unexpected server error occurred.", "status_code": 500},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
     return response
-

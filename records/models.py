@@ -389,9 +389,7 @@ class MedicationAdministration(TimeStampedModel):
         verbose_name = "Medication Administration"
         verbose_name_plural = "Medication Administrations"
         indexes = [
-            models.Index(
-                fields=["status", "scheduled_time"], name="medadmin_status_scheduled_idx"
-            ),
+            models.Index(fields=["status", "scheduled_time"], name="medadmin_status_scheduled_idx"),
         ]
 
     def __str__(self):

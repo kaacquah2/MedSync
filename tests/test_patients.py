@@ -63,22 +63,61 @@ class TestPatientSearchView:
         resp = client_as_doctor_a.get(f"/api/patients/?q={patient_a.universal_id}")
         assert resp.status_code == 200
         results = resp.json()["results"]
-        assert any(p["universal_id"] == patient_a.universal_id for p in results)
+        match = next(p for p in results if p["universal_id"] == patient_a.universal_id)
+        assert match["has_access"] is True
+        assert match["first_name"] == "Yaw"
+        assert match["last_name"] == "Mensah"
+        assert match["full_name"] == "Yaw Mensah"
 
     def test_search_by_name(self, client_as_doctor_a, patient_a):
         resp = client_as_doctor_a.get("/api/patients/?q=Yaw")
         assert resp.status_code == 200
+        results = resp.json()["results"]
+        assert any(p["universal_id"] == patient_a.universal_id for p in results)
+
+    def test_search_by_nonexistent_nhid(self, client_as_doctor_a, patient_a):
+        """Searching for a mistyped or nonexistent NHID returns 200 without NameError or 500."""
+        resp = client_as_doctor_a.get("/api/patients/?q=NHID-NONEXISTENT")
+        assert resp.status_code == 200
+        results = resp.json()["results"]
+        assert not any(p["universal_id"] == patient_a.universal_id for p in results)
 
     def test_search_requires_login(self, client):
         resp = client.get("/api/patients/?q=test")
         assert resp.status_code == 401
 
     def test_cross_hospital_patient_visible_to_other_hospital(self, client_as_doctor_b, patient_a):
-        """Doctor at Hospital B can find a patient registered at Hospital A."""
+        """Doctor at Hospital B can find a patient registered at Hospital A, but receives only a stub."""
         resp = client_as_doctor_b.get(f"/api/patients/?q={patient_a.universal_id}")
         assert resp.status_code == 200
         results = resp.json()["results"]
-        assert any(p["universal_id"] == patient_a.universal_id for p in results)
+        match = next(p for p in results if p["universal_id"] == patient_a.universal_id)
+        assert match["has_access"] is False
+        assert match["first_name"] is None
+        assert match["last_name"] is None
+        assert match["full_name"] is None
+        assert match["date_of_birth"] is None
+        assert match["sex"] is None
+        assert match["blood_group"] is None
+        assert match["registered_at_hospital"]["name"] == patient_a.registered_at_hospital.name
+
+    def test_cross_hospital_national_id_search_returns_stub(self, client_as_doctor_b, patient_a):
+        """Presenting Ghana Card (National ID) matches nationwide as a stub to prevent duplicate registrations."""
+        resp = client_as_doctor_b.get(f"/api/patients/?q={patient_a.national_id}")
+        assert resp.status_code == 200
+        results = resp.json()["results"]
+        match = next(p for p in results if p["universal_id"] == patient_a.universal_id)
+        assert match["has_access"] is False
+        assert match["first_name"] is None
+        assert match["last_name"] is None
+        assert match["full_name"] is None
+
+    def test_cross_hospital_name_search_does_not_leak(self, client_as_doctor_b, patient_a):
+        """Doctor B searching by name cannot find Patient A at Hospital A (prevents national name enumeration)."""
+        resp = client_as_doctor_b.get("/api/patients/?q=Yaw")
+        assert resp.status_code == 200
+        results = resp.json()["results"]
+        assert not any(p["universal_id"] == patient_a.universal_id for p in results)
 
 
 class TestPatientDetailView:

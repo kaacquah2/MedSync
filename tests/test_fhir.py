@@ -123,7 +123,9 @@ class TestFhirSchemaValidation:
         fhir_bundle = Bundle(**bundle_dict)
         assert fhir_bundle.get_resource_type() == "Bundle"
         assert fhir_bundle.type == "searchset"
-        assert len(fhir_bundle.entry) == 5  # Patient + Encounter + Condition + MedicationRequest + Observation
+        assert (
+            len(fhir_bundle.entry) == 5
+        )  # Patient + Encounter + Condition + MedicationRequest + Observation
 
 
 # ── 2. Resource Reference Consistency & Format Tests ─────────────────────────
@@ -168,9 +170,18 @@ class TestResourceReferences:
         assert lab_res["encounter"]["reference"] == expected_enc_ref
 
         # Organization and Practitioner references
-        assert p_res["managingOrganization"]["reference"] == f"Organization/HOSP-{patient_a.registered_at_hospital_id}"
-        assert enc_res["serviceProvider"]["reference"] == f"Organization/HOSP-{enc.created_at_hospital_id}"
-        assert enc_res["participant"][0]["individual"]["reference"] == f"Practitioner/PRAC-{enc.created_by_id}"
+        assert (
+            p_res["managingOrganization"]["reference"]
+            == f"Organization/HOSP-{patient_a.registered_at_hospital_id}"
+        )
+        assert (
+            enc_res["serviceProvider"]["reference"]
+            == f"Organization/HOSP-{enc.created_at_hospital_id}"
+        )
+        assert (
+            enc_res["participant"][0]["individual"]["reference"]
+            == f"Practitioner/PRAC-{enc.created_by_id}"
+        )
         assert diag_res["recorder"]["reference"] == f"Practitioner/PRAC-{diag.created_by_id}"
         assert rx_res["requester"]["reference"] == f"Practitioner/PRAC-{rx.created_by_id}"
 
@@ -272,7 +283,9 @@ class TestFhirAccessControl:
         assert data["resourceType"] == "OperationOutcome"
         assert "Insufficient access" in data["issue"][0]["diagnostics"]
 
-    def test_doctor_cross_hospital_with_break_glass_granted_200(self, db, client, doctor_b, patient_a):
+    def test_doctor_cross_hospital_with_break_glass_granted_200(
+        self, db, client, doctor_b, patient_a
+    ):
         """doctor_b with active break-glass grant is permitted cross-hospital FHIR access."""
         BreakGlassAccess.objects.create(
             actor=doctor_b,
@@ -320,4 +333,3 @@ class TestFhirCapabilityStatement:
         resources = data["rest"][0]["resource"]
         patient_res = next(r for r in resources if r["type"] == "Patient")
         assert patient_res["interaction"][0]["code"] == "read"
-

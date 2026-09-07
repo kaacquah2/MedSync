@@ -6,27 +6,43 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('accounts', '0004_alter_user_role'),
+        ("accounts", "0004_alter_user_role"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='EmailOTP',
+            name="EmailOTP",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('code_hash', models.CharField(help_text='SHA-256 hex digest of the 6-digit email OTP.', max_length=64)),
-                ('used', models.BooleanField(default=False)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('expires_at', models.DateTimeField()),
-                ('used_at', models.DateTimeField(blank=True, null=True)),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='email_otps', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                (
+                    "code_hash",
+                    models.CharField(
+                        help_text="SHA-256 hex digest of the 6-digit email OTP.", max_length=64
+                    ),
+                ),
+                ("used", models.BooleanField(default=False)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("expires_at", models.DateTimeField()),
+                ("used_at", models.DateTimeField(blank=True, null=True)),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="email_otps",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Email OTP',
-                'verbose_name_plural': 'Email OTPs',
-                'ordering': ['-created_at'],
+                "verbose_name": "Email OTP",
+                "verbose_name_plural": "Email OTPs",
+                "ordering": ["-created_at"],
             },
         ),
     ]

@@ -147,11 +147,16 @@ class PrescriptionCreateView(APIView):
                 patient=encounter.patient,
                 is_cross_hospital=True,
             )
+            store_idempotency(cache_key, None)
             return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
 
-        serializer = PrescriptionSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        prescription = serializer.save(encounter=encounter, created_by=request.user)
+        try:
+            serializer = PrescriptionSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            prescription = serializer.save(encounter=encounter, created_by=request.user)
+        except Exception:
+            store_idempotency(cache_key, None)
+            raise
 
         log_action(
             request,
@@ -353,7 +358,9 @@ class MedicationAdministrationUpdateStatusView(APIView):
             patient=admin.prescription.encounter.patient,
             extra={
                 "new_status": new_status,
-                "administered_by": request.user.username if new_status == MedicationAdministration.Status.GIVEN else None,
+                "administered_by": request.user.username
+                if new_status == MedicationAdministration.Status.GIVEN
+                else None,
             },
         )
 

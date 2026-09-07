@@ -10,13 +10,13 @@ PII-bearing serializers are ONLY returned through access-gated endpoints.
 
 from rest_framework import serializers
 
+from access.permissions import can_access_patient
 from accounts.models import User
 from audit.models import AuditLog
 from hospitals.models import Hospital
 from patients.models import Patient, PatientAlert
 from records.models import Diagnosis, Encounter, LabResult, MedicationAdministration, Prescription
 from records.validators import validate_icd10, validate_loinc, validate_rxnorm, validate_snomed
-
 
 # ── Shared helpers ─────────────────────────────────────────────────────────────
 
@@ -142,7 +142,6 @@ class StaffSerializer(serializers.ModelSerializer):
             "last_name",
             "full_name",
             "email",
-            "password",
             "role",
             "role_display",
             "hospital",
@@ -155,9 +154,6 @@ class StaffSerializer(serializers.ModelSerializer):
             "date_joined",
         ]
         read_only_fields = ["id", "date_joined", "full_name", "is_clinical", "mfa_enabled"]
-        extra_kwargs = {
-            "password": {"write_only": True, "required": False},
-        }
 
     def get_mfa_enabled(self, obj):
         return _mfa_enabled(obj)
@@ -173,11 +169,9 @@ class StaffSerializer(serializers.ModelSerializer):
         return user
 
     def update(self, instance, validated_data):
-        password = validated_data.pop("password", None)
+        validated_data.pop("password", None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
-        if password:
-            instance.set_password(password)
         instance.save()
         return instance
 
@@ -188,11 +182,13 @@ class StaffSerializer(serializers.ModelSerializer):
 class PatientListSerializer(serializers.ModelSerializer):
     """
     Compact patient serializer for search results.
-    Still decrypts name/dob — only returned to authenticated staff.
+    Decrypts demographic PII only for authenticated staff with access.
+    Cross-hospital matches without an existing access basis return a minimal stub.
     """
 
     full_name = serializers.SerializerMethodField()
     registered_at_hospital = HospitalMinimalSerializer(read_only=True)
+    has_access = serializers.SerializerMethodField()
 
     class Meta:
         model = Patient
@@ -206,13 +202,49 @@ class PatientListSerializer(serializers.ModelSerializer):
             "blood_group",
             "registered_at_hospital",
             "created_at",
+            "has_access",
         ]
 
+    def _user_has_access(self, obj) -> bool:
+        request = self.context.get("request")
+        user = getattr(request, "user", None) if request else None
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
+        return bool(can_access_patient(user, obj))
+
+    def get_has_access(self, obj) -> bool:
+        return self._user_has_access(obj)
+
     def get_full_name(self, obj):
+        if not self._user_has_access(obj):
+            return None
         try:
             return f"{obj.first_name} {obj.last_name}"
         except Exception:
             return ""
+
+    def to_representation(self, instance):
+        has_access = self._user_has_access(instance)
+        if not has_access:
+            return {
+                "universal_id": instance.universal_id,
+                "full_name": None,
+                "first_name": None,
+                "last_name": None,
+                "date_of_birth": None,
+                "sex": None,
+                "blood_group": None,
+                "registered_at_hospital": HospitalMinimalSerializer(
+                    instance.registered_at_hospital
+                ).data
+                if instance.registered_at_hospital
+                else None,
+                "created_at": None,
+                "has_access": False,
+            }
+        data = super().to_representation(instance)
+        data["has_access"] = True
+        return data
 
 
 class PatientSerializer(serializers.ModelSerializer):
@@ -317,9 +349,7 @@ class PatientAlertSerializer(serializers.ModelSerializer):
 
 class DiagnosisSerializer(serializers.ModelSerializer):
     created_by = serializers.SerializerMethodField()
-    icd_code = serializers.CharField(
-        required=False, allow_blank=True, validators=[validate_icd10]
-    )
+    icd_code = serializers.CharField(required=False, allow_blank=True, validators=[validate_icd10])
     snomed_code = serializers.CharField(
         required=False, allow_blank=True, validators=[validate_snomed]
     )

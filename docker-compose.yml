@@ -12,7 +12,7 @@ services:
     # environment:
     #   DATABASE_URL: postgres://emr:emrpass@db:5432/emrdb
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/healthz/ || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz/')\" || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

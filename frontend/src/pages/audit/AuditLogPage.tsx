@@ -43,6 +43,8 @@ const ACTION_COLORS: Record<string, string> = {
   MFA_REMOVED:         "orange",
   STAFF_DEACTIVATED:   "red",
   STAFF_ACTIVATED:     "green",
+  STAFF_CREATED:       "teal",
+  STAFF_UPDATED:       "cyan",
   SESSIONS_REVOKED:    "red",
 };
 

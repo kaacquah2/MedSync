@@ -1,7 +1,9 @@
 """Patient document upload, list, download and delete API."""
 
 import io
+import logging
 import os
+import zipfile
 
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
@@ -17,6 +19,8 @@ from api.permissions import IsAdminOrClinical
 from audit.utils import log_action
 from patients.models import Patient
 from records.models import PatientDocument
+
+logger = logging.getLogger(__name__)
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB
 
@@ -51,8 +55,8 @@ def sanitize_filename(filename: str) -> str:
     return f"{clean_base}{ext}"
 
 
-def sniff_file_mime(first_bytes: bytes) -> str | None:
-    """Sniff magic bytes to verify file type against the allowlist."""
+def sniff_file_mime(first_bytes: bytes, file_obj=None) -> str | None:
+    """Sniff magic bytes and structural signatures to verify file type against the allowlist."""
     if first_bytes.startswith(b"%PDF-"):
         return "application/pdf"
     elif first_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
@@ -60,13 +64,48 @@ def sniff_file_mime(first_bytes: bytes) -> str | None:
     elif first_bytes.startswith(b"\xff\xd8\xff"):
         return "image/jpeg"
     elif first_bytes.startswith(b"PK\x03\x04"):
-        # ZIP or DOCX container
-        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    try:
-        first_bytes.decode("utf-8")
-        return "text/plain"
-    except UnicodeDecodeError:
-        pass
+        # Validate that this is actually a DOCX container, not an arbitrary zip archive
+        is_docx = False
+        if file_obj is not None:
+            try:
+                cur_pos = file_obj.tell() if hasattr(file_obj, "tell") else 0
+                file_obj.seek(0)
+                with zipfile.ZipFile(file_obj) as zf:
+                    names = zf.namelist()
+                    if "[Content_Types].xml" in names or any(n.startswith("word/") for n in names):
+                        is_docx = True
+            except Exception:
+                is_docx = False
+            finally:
+                if hasattr(file_obj, "seek"):
+                    file_obj.seek(cur_pos)
+        else:
+            try:
+                with zipfile.ZipFile(io.BytesIO(first_bytes)) as zf:
+                    names = zf.namelist()
+                    if "[Content_Types].xml" in names or any(n.startswith("word/") for n in names):
+                        is_docx = True
+            except Exception:
+                if b"[Content_Types].xml" in first_bytes or b"word/" in first_bytes:
+                    is_docx = True
+
+        if is_docx:
+            return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        return None
+
+    # Text check: disallow null bytes, decode with errors="ignore", and check for binary control characters
+    if b"\x00" not in first_bytes:
+        try:
+            text = first_bytes.decode("utf-8", errors="ignore")
+            if text.strip():
+                # Disallow control characters other than standard whitespace (\t, \n, \r)
+                control_chars = sum(
+                    1 for ch in text if ord(ch) < 32 and ch not in ("\t", "\n", "\r")
+                )
+                if control_chars == 0:
+                    return "text/plain"
+        except Exception:
+            pass
     return None
 
 
@@ -144,7 +183,11 @@ class PatientDocumentListUploadView(APIView):
 
         from rest_framework.pagination import PageNumberPagination
 
-        docs = PatientDocument.objects.filter(patient=patient).select_related("uploaded_by").order_by("-created_at")
+        docs = (
+            PatientDocument.objects.filter(patient=patient)
+            .select_related("uploaded_by")
+            .order_by("-created_at")
+        )
         paginator = PageNumberPagination()
         page = paginator.paginate_queryset(docs, request)
         serializer = PatientDocumentSerializer(page, many=True, context={"request": request})
@@ -182,14 +225,16 @@ class PatientDocumentListUploadView(APIView):
         ext = os.path.splitext(uploaded_file.name)[1].lower()
         if ext not in ALLOWED_EXTENSIONS:
             return Response(
-                {"error": f"File extension '{ext}' is not allowed. Allowed: {list(ALLOWED_EXTENSIONS)}"},
+                {
+                    "error": f"File extension '{ext}' is not allowed. Allowed: {list(ALLOWED_EXTENSIONS)}"
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         # 2. Magic-byte Sniffing
         first_bytes = uploaded_file.read(512)
         uploaded_file.seek(0)
-        sniffed_mime = sniff_file_mime(first_bytes)
+        sniffed_mime = sniff_file_mime(first_bytes, file_obj=uploaded_file)
         expected_mime = EXTENSION_TO_MIME.get(ext)
         if not sniffed_mime or sniffed_mime != expected_mime:
             return Response(
@@ -261,12 +306,22 @@ class PatientDocumentDownloadView(APIView):
 
         # Decrypt if encrypted, otherwise serve plaintext fallback (for backwards compatibility)
         from core.fields import decrypt_bytes
-        try:
-            if encrypted_bytes.startswith(b"gAAAAA"):
+
+        if encrypted_bytes.startswith(b"gAAAAA"):
+            try:
                 decrypted_bytes = decrypt_bytes(encrypted_bytes)
-            else:
-                decrypted_bytes = encrypted_bytes
-        except Exception:
+            except Exception as exc:
+                logger.exception(
+                    "Failed to decrypt document %s for patient %s: %s",
+                    doc.pk,
+                    patient.universal_id,
+                    exc,
+                )
+                return Response(
+                    {"error": "Failed to decrypt document. Please contact an administrator."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+        else:
             decrypted_bytes = encrypted_bytes
 
         log_action(
@@ -276,7 +331,9 @@ class PatientDocumentDownloadView(APIView):
             patient=patient,
             extra={"document_id": doc.pk},
         )
-        response = FileResponse(io.BytesIO(decrypted_bytes), content_type=doc.file_type or "application/octet-stream")
+        response = FileResponse(
+            io.BytesIO(decrypted_bytes), content_type=doc.file_type or "application/octet-stream"
+        )
         safe_name = sanitize_filename(doc.original_name)
         response["Content-Disposition"] = f'attachment; filename="{safe_name}"'
         return response
@@ -285,7 +342,7 @@ class PatientDocumentDownloadView(APIView):
 class PatientDocumentDeleteView(APIView):
     """DELETE /api/patients/<nhid>/documents/<pk>/ — delete document and file."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsAdminOrClinical]
 
     def delete(self, request, nhid, pk):
         patient = get_object_or_404(Patient, universal_id=nhid)
@@ -302,6 +359,7 @@ class PatientDocumentDeleteView(APIView):
         doc = get_object_or_404(PatientDocument, pk=pk, patient=patient)
         doc_id = doc.pk
         from django.db import transaction
+
         with transaction.atomic():
             if doc.file:
                 doc.file.delete(save=False)

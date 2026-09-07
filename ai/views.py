@@ -94,6 +94,7 @@ class PatientAIQueryView(APIView):
             )
 
         import hashlib
+
         hashed_question = hashlib.sha256(question.encode("utf-8")).hexdigest()
         log_action(
             request,

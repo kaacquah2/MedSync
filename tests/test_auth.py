@@ -250,3 +250,170 @@ class TestSessionInterruptedGraceful:
             assert resp.status_code == 400
             assert b"Session interrupted" in resp.content
             assert resp.headers["content-type"] == "text/plain"
+
+
+class TestAxesLockout:
+    def test_lockout_response_json_for_api(self, db, rf):
+        from accounts.lockout import axes_lockout_response
+        from audit.models import AuditLog
+
+        request = rf.post(
+            "/api/auth/login/",
+            json.dumps({"username": "dr_smith", "password": "wrong"}),
+            content_type="application/json",
+        )
+        resp = axes_lockout_response(request, credentials={"username": "dr_smith"})
+        assert resp.status_code == 403
+        assert resp.headers["content-type"] == "application/json"
+        data = json.loads(resp.content)
+        assert "error" in data
+        assert "Account locked" in data["error"]
+
+        log = AuditLog.objects.filter(action="ACCESS_DENIED").last()
+        assert log is not None
+        assert log.extra.get("reason") == "brute_force_lockout"
+        assert log.extra.get("username_attempted") == "dr_smith"
+
+    def test_lockout_response_html_for_browser(self, db, rf):
+        from accounts.lockout import axes_lockout_response
+        from audit.models import AuditLog
+
+        request = rf.post(
+            "/admin/login/",
+            {"username": "admin_user", "password": "bad"},
+        )
+        request.headers = {"Accept": "text/html"}
+        resp = axes_lockout_response(request, credentials={"username": "admin_user"})
+        assert resp.status_code == 403
+        assert "text/html" in resp.headers["content-type"]
+        assert b"Account Temporarily Locked" in resp.content
+
+        log = AuditLog.objects.filter(action="ACCESS_DENIED").last()
+        assert log is not None
+        assert log.extra.get("reason") == "brute_force_lockout"
+
+    @override_settings(
+        AXES_ENABLED=True,
+        AXES_FAILURE_LIMIT=2,
+        AXES_LOCKOUT_CALLABLE="accounts.lockout.axes_lockout_response",
+    )
+    def test_brute_force_lockout_integration(self, db, client, doctor_a):
+        from axes.models import AccessAttempt
+
+        from audit.models import AuditLog
+
+        AccessAttempt.objects.all().delete()
+
+        # Attempt 1: failure limit not reached -> 401
+        resp = client.post(
+            "/api/auth/login/",
+            json.dumps({"username": doctor_a.username, "password": "wrongpassword"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 401
+
+        # Attempt 2: failure limit reached (2 failures) -> 403 lockout JsonResponse
+        resp = client.post(
+            "/api/auth/login/",
+            json.dumps({"username": doctor_a.username, "password": "wrongpassword"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 403
+        data = resp.json()
+        assert "error" in data
+        assert "Account locked" in data["error"]
+
+        # Lockout audit trail entry is created
+        log = AuditLog.objects.filter(
+            action="ACCESS_DENIED",
+            extra__reason="brute_force_lockout",
+        ).last()
+        assert log is not None
+        assert log.extra.get("username_attempted") == doctor_a.username
+
+
+class TestMeProfileUpdate:
+    def test_patch_me_non_email_fields_no_password_needed(self, db, client, doctor_a):
+        client.force_login(doctor_a)
+        resp = client.patch(
+            "/api/me/",
+            json.dumps({"first_name": "UpdatedName", "bio": "New bio info"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        doctor_a.refresh_from_db()
+        assert doctor_a.first_name == "UpdatedName"
+        assert doctor_a.bio == "New bio info"
+
+        from audit.models import AuditLog
+
+        log = AuditLog.objects.filter(actor=doctor_a, action="STAFF_UPDATED").latest("timestamp")
+        assert log is not None
+        assert "first_name" in log.extra["updated_fields"]
+        assert "bio" in log.extra["updated_fields"]
+
+    def test_patch_me_same_email_no_password_needed(self, db, client, doctor_a):
+        client.force_login(doctor_a)
+        doctor_a.email = "doc@example.com"
+        doctor_a.save()
+
+        resp = client.patch(
+            "/api/me/",
+            json.dumps({"email": "doc@example.com", "phone": "12345"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        doctor_a.refresh_from_db()
+        assert doctor_a.phone == "12345"
+
+    def test_patch_me_change_email_missing_password_rejected(self, db, client, doctor_a):
+        client.force_login(doctor_a)
+        doctor_a.email = "old@example.com"
+        doctor_a.save()
+
+        resp = client.patch(
+            "/api/me/",
+            json.dumps({"email": "new@example.com"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "Current password is required" in resp.json()["error"]
+        doctor_a.refresh_from_db()
+        assert doctor_a.email == "old@example.com"
+
+    def test_patch_me_change_email_wrong_password_rejected(self, db, client, doctor_a):
+        client.force_login(doctor_a)
+        doctor_a.email = "old@example.com"
+        doctor_a.save()
+
+        resp = client.patch(
+            "/api/me/",
+            json.dumps({"email": "new@example.com", "current_password": "WrongPassword123!"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "Current password is incorrect" in resp.json()["error"]
+        doctor_a.refresh_from_db()
+        assert doctor_a.email == "old@example.com"
+
+    def test_patch_me_change_email_success_with_password_and_audit(self, db, client, doctor_a):
+        client.force_login(doctor_a)
+        doctor_a.email = "old@example.com"
+        doctor_a.save()
+
+        resp = client.patch(
+            "/api/me/",
+            json.dumps({"email": "newdoctor@hospital.org", "current_password": "Test@password1"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        doctor_a.refresh_from_db()
+        assert doctor_a.email == "newdoctor@hospital.org"
+
+        from audit.models import AuditLog
+
+        log = AuditLog.objects.filter(actor=doctor_a, action="STAFF_UPDATED").latest("timestamp")
+        assert log is not None
+        assert log.extra.get("email_changed") is True
+        assert log.extra.get("new_email") == "n***r@hospital.org"
+        assert "newdoctor@hospital.org" != log.extra.get("new_email")

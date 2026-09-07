@@ -37,7 +37,9 @@ class TestPatientConsentGating:
 class TestDocumentUploadHardening:
     def test_upload_extension_allowlist(self, client_as_doctor_a, patient_a):
         # Disallowed extension (.exe)
-        invalid_file = SimpleUploadedFile("malware.exe", b"MZ\x90\x00\x03\x00\x00\x00", content_type="application/octet-stream")
+        invalid_file = SimpleUploadedFile(
+            "malware.exe", b"MZ\x90\x00\x03\x00\x00\x00", content_type="application/octet-stream"
+        )
         resp = client_as_doctor_a.post(
             f"/api/patients/{patient_a.universal_id}/documents/",
             {"file": invalid_file, "description": "malware"},
@@ -47,7 +49,9 @@ class TestDocumentUploadHardening:
 
     def test_upload_mime_signature_sniffing(self, client_as_doctor_a, patient_a):
         # PNG extension but random text content (not matching PNG magic bytes)
-        invalid_png = SimpleUploadedFile("fake.png", b"not-a-png-file-content", content_type="image/png")
+        invalid_png = SimpleUploadedFile(
+            "fake.png", b"not-a-png-file-content", content_type="image/png"
+        )
         resp = client_as_doctor_a.post(
             f"/api/patients/{patient_a.universal_id}/documents/",
             {"file": invalid_png, "description": "fake image"},

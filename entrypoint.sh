@@ -7,8 +7,14 @@ if [ "$DEBUG" != "true" ] && [ ! -d "frontend/dist" ]; then
     exit 1
 fi
 
-echo "==> Running database migrations..."
-python manage.py migrate --noinput
+# Migrations should run in a dedicated release/job step before starting web replicas.
+# In single-container or dev environments, set RUN_MIGRATIONS=true to run on startup.
+if [ "$RUN_MIGRATIONS" = "true" ]; then
+    echo "==> Running database migrations (RUN_MIGRATIONS=true)..."
+    python manage.py migrate --noinput
+else
+    echo "==> Skipping database migrations on startup (RUN_MIGRATIONS not set to 'true'). Run via release/job step."
+fi
 
 # Demo seeding is opt-in: set SEED_DEMO=true to populate sample hospitals,
 # staff, patients, and encounters. Do NOT enable in production — seed_demo

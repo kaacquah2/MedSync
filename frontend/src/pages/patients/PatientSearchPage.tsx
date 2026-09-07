@@ -13,6 +13,7 @@ import {
 import {
   IconArrowRight,
   IconSearch,
+  IconShield,
   IconUserPlus,
 } from "@tabler/icons-react";
 import { PageHeader } from "@/components/PageHeader";
@@ -128,26 +129,37 @@ export function PatientSearchPage() {
                         <Text size="sm" ff="monospace" fw={600}>{p.universal_id}</Text>
                       </Table.Td>
                       <Table.Td>
-                        <Anchor component={Link} to={`/patients/${p.universal_id}`} size="sm" fw={500}>
-                          {p.full_name}
-                        </Anchor>
+                        {p.has_access === false ? (
+                          <Badge color="gray" variant="light" size="sm">
+                            Restricted (Other Hospital)
+                          </Badge>
+                        ) : (
+                          <Anchor component={Link} to={`/patients/${p.universal_id}`} size="sm" fw={500}>
+                            {p.full_name}
+                          </Anchor>
+                        )}
                       </Table.Td>
-                      <Table.Td>{p.date_of_birth}</Table.Td>
-                      <Table.Td>{SEX_LABEL[p.sex] ?? p.sex}</Table.Td>
+                      <Table.Td>{p.date_of_birth ?? "—"}</Table.Td>
+                      <Table.Td>{p.sex ? (SEX_LABEL[p.sex] ?? p.sex) : "—"}</Table.Td>
                       <Table.Td>
-                        <Badge variant="light" size="sm">{p.blood_group}</Badge>
+                        {p.blood_group ? (
+                          <Badge variant="light" size="sm">{p.blood_group}</Badge>
+                        ) : (
+                          "—"
+                        )}
                       </Table.Td>
                       <Table.Td>{p.registered_at_hospital?.name ?? "—"}</Table.Td>
-                      <Table.Td>{dayjs(p.created_at).format("DD MMM YYYY")}</Table.Td>
+                      <Table.Td>{p.created_at ? dayjs(p.created_at).format("DD MMM YYYY") : "—"}</Table.Td>
                       <Table.Td>
                         <Button
                           component={Link}
                           to={`/patients/${p.universal_id}`}
                           size="xs"
-                          variant="subtle"
-                          rightSection={<IconArrowRight size={14} />}
+                          variant={p.has_access === false ? "light" : "subtle"}
+                          color={p.has_access === false ? "orange" : "blue"}
+                          rightSection={p.has_access === false ? <IconShield size={14} /> : <IconArrowRight size={14} />}
                         >
-                          View
+                          {p.has_access === false ? "Request Access" : "View"}
                         </Button>
                       </Table.Td>
                     </Table.Tr>

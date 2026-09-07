@@ -10,14 +10,14 @@ Verifies that cross-hospital actors receive 403 Forbidden when attempting to upd
 """
 
 import json
+
 import pytest
+from django.contrib.auth import get_user_model
+
 from hospitals.models import Bed, Ward
-from records.models import Encounter, MedicationAdministration, Prescription
+from records.models import MedicationAdministration, Prescription
 from referrals.models import Referral
 from shifts.models import Handover, ShiftRecord
-
-
-from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
@@ -111,7 +111,9 @@ class TestAuthorizationScoping:
         )
         assert resp.status_code == 403
 
-    def test_referral_cross_hospital_denied(self, client, admin_a, patient_a, hospital_b, hospital_a):
+    def test_referral_cross_hospital_denied(
+        self, client, admin_a, patient_a, hospital_b, hospital_a
+    ):
         from hospitals.models import Hospital
 
         hospital_c = Hospital.objects.create(name="Hospital C", code="HSPC", city="Tamale")

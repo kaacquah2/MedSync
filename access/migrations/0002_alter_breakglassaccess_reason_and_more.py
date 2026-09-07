@@ -5,25 +5,28 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('access', '0001_initial'),
+        ("access", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='breakglassaccess',
-            name='reason',
-            field=core.fields.EncryptedTextField(help_text='Required: clinical justification for this emergency override.'),
+            model_name="breakglassaccess",
+            name="reason",
+            field=core.fields.EncryptedTextField(
+                help_text="Required: clinical justification for this emergency override."
+            ),
         ),
         migrations.AlterField(
-            model_name='patientconsent',
-            name='notes',
+            model_name="patientconsent",
+            name="notes",
             field=core.fields.EncryptedTextField(blank=True),
         ),
         migrations.AlterField(
-            model_name='treatmentrelationship',
-            name='reason',
-            field=core.fields.EncryptedTextField(blank=True, help_text='Clinical reason for the treatment relationship.'),
+            model_name="treatmentrelationship",
+            name="reason",
+            field=core.fields.EncryptedTextField(
+                blank=True, help_text="Clinical reason for the treatment relationship."
+            ),
         ),
     ]

@@ -5,6 +5,7 @@ Rejects malformed code formats at both model field validation and serializer val
 """
 
 import re
+
 from django.core.exceptions import ValidationError
 
 # ICD-10-CM: Letter A-Z + 2 digits/chars + optional dot and 1-4 chars (e.g. J18.9, I10, E11.9, R51.9)
@@ -43,6 +44,4 @@ def validate_loinc(value):
 
 def validate_rxnorm(value):
     if value and not RXNORM_REGEX.match(str(value).strip()):
-        raise ValidationError(
-            f"'{value}' is not a valid RxNorm CUI format (expected 2-8 digits)."
-        )
+        raise ValidationError(f"'{value}' is not a valid RxNorm CUI format (expected 2-8 digits).")

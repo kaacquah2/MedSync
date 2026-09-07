@@ -40,43 +40,12 @@ export function AIIntegrationPage() {
         <Card withBorder radius="md" p="lg">
           <Group justify="space-between" mb="md">
             <Group gap="sm">
-              <ThemeIcon size={32} color="medsync" variant="light" radius="md">
-                <IconBolt size={18} />
-              </ThemeIcon>
-              <Text fw={700}>Google Gemini 2.0 Flash</Text>
-            </Group>
-            <Badge color="medsync" variant="light">Default Provider</Badge>
-          </Group>
-          <Stack gap="xs">
-            <Group justify="space-between">
-              <Text size="sm" c="dimmed">Tier</Text>
-              <Text size="sm" fw={500}>Free API (1,500 req/day)</Text>
-            </Group>
-            <Group justify="space-between">
-              <Text size="sm" c="dimmed">Model</Text>
-              <Code>gemini-2.0-flash</Code>
-            </Group>
-            <Group justify="space-between">
-              <Text size="sm" c="dimmed">PHI leaves server?</Text>
-              <Badge color="orange" size="sm" variant="light">Yes — to Google API</Badge>
-            </Group>
-            <Divider my="xs" />
-            <Text size="xs" c="dimmed">
-              Configure by adding <Code>GEMINI_API_KEY=your_key</Code> to{" "}
-              <Code>.env</Code>. Get a free key at aistudio.google.com
-            </Text>
-          </Stack>
-        </Card>
-
-        <Card withBorder radius="md" p="lg">
-          <Group justify="space-between" mb="md">
-            <Group gap="sm">
               <ThemeIcon size={32} color="green" variant="light" radius="md">
                 <IconShieldCheck size={18} />
               </ThemeIcon>
-              <Text fw={700}>Local Ollama (Privacy-First)</Text>
+              <Text fw={700}>Local Ollama (Zero Egress)</Text>
             </Group>
-            <Badge color="green" variant="light">Optional</Badge>
+            <Badge color="green" variant="light">Production Default</Badge>
           </Group>
           <Stack gap="xs">
             <Group justify="space-between">
@@ -88,13 +57,44 @@ export function AIIntegrationPage() {
               <Badge color="green" size="sm" variant="light">No — fully local</Badge>
             </Group>
             <Group justify="space-between">
-              <Text size="sm" c="dimmed">Cost</Text>
-              <Text size="sm" fw={500}>Free (compute only)</Text>
+              <Text size="sm" c="dimmed">Compliance</Text>
+              <Text size="sm" fw={500} c="green">HIPAA / Ghana DPA 2012</Text>
             </Group>
             <Divider my="xs" />
             <Text size="xs" c="dimmed">
               Set <Code>AI_PROVIDER=ollama</Code> and run Ollama locally.
-              Best for GDPR/HIPAA deployments where no data may leave the hospital network.
+              Required for production deployments — all clinical notes and records remain strictly on premise.
+            </Text>
+          </Stack>
+        </Card>
+
+        <Card withBorder radius="md" p="lg">
+          <Group justify="space-between" mb="md">
+            <Group gap="sm">
+              <ThemeIcon size={32} color="orange" variant="light" radius="md">
+                <IconBolt size={18} />
+              </ThemeIcon>
+              <Text fw={700}>Google Gemini 2.5 Flash</Text>
+            </Group>
+            <Badge color="yellow" variant="light">Dev / Testing Only</Badge>
+          </Group>
+          <Stack gap="xs">
+            <Group justify="space-between">
+              <Text size="sm" c="dimmed">Tier</Text>
+              <Text size="sm" fw={500}>Cloud API (DEBUG=True only)</Text>
+            </Group>
+            <Group justify="space-between">
+              <Text size="sm" c="dimmed">Model</Text>
+              <Code>gemini-2.5-flash</Code>
+            </Group>
+            <Group justify="space-between">
+              <Text size="sm" c="dimmed">PHI leaves server?</Text>
+              <Badge color="red" size="sm" variant="light">Yes — External Egress</Badge>
+            </Group>
+            <Divider my="xs" />
+            <Text size="xs" c="dimmed">
+              For local development only. Blocked in production (<Code>DEBUG=False</Code>) because
+              the free API has no BAA/DPA and clinical narrative egress violates data protection regulations.
             </Text>
           </Stack>
         </Card>

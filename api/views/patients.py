@@ -19,7 +19,13 @@ from rest_framework.views import APIView
 
 from access.models import BREAK_GLASS_DURATION_HOURS, BreakGlassAccess
 from access.permissions import can_access_patient
-from api.permissions import BreakGlassThrottle, CanRegisterPatient, CanCreateEncounter, IsAdminOrClinical, IsDoctorOrNurse
+from api.permissions import (
+    BreakGlassThrottle,
+    CanCreateEncounter,
+    CanRegisterPatient,
+    IsAdminOrClinical,
+    IsDoctorOrNurse,
+)
 from api.serializers import (
     EncounterListSerializer,
     EncounterSerializer,
@@ -72,6 +78,7 @@ class PatientSearchView(APIView):
 
         if q:
             q_upper = q.upper()
+            seen = set()
 
             if q_upper.startswith("NHID-"):
                 patients = list(
@@ -79,16 +86,28 @@ class PatientSearchView(APIView):
                         "registered_at_hospital"
                     )
                 )
+                seen = {p.pk for p in patients}
             else:
                 from django.db.models import Q
 
                 hash_value = make_blind_index(q)
 
-                exact_qs = Patient.objects.filter(
-                    Q(name_hash=hash_value) | Q(national_id_hash=hash_value)
-                ).select_related("registered_at_hospital")
+                # National ID enables nationwide exact match (for physical Ghana Card lookup),
+                # while name_hash is scoped to the user's hospital to prevent
+                # national patient enumeration by name. System/hospital admins can search nationwide.
+                if request.user.is_admin_level:
+                    exact_filter = Q(name_hash=hash_value) | Q(national_id_hash=hash_value)
+                else:
+                    exact_filter = Q(national_id_hash=hash_value)
+                    if request.user.hospital:
+                        exact_filter |= Q(name_hash=hash_value) & Q(
+                            registered_at_hospital=request.user.hospital
+                        )
 
-                seen = set()
+                exact_qs = Patient.objects.filter(exact_filter).select_related(
+                    "registered_at_hospital"
+                )
+
                 for p in exact_qs:
                     if p.pk not in seen:
                         patients.append(p)
@@ -96,22 +115,20 @@ class PatientSearchView(APIView):
 
             if not patients or len(q) < 5:
                 from patients.models import generate_name_trigrams
-                
+
                 query_tokens = generate_name_trigrams(q, "")
                 if query_tokens:
                     token_hashes = [make_blind_index(tok) for tok in query_tokens if tok]
-                    
+
                     token_qs = Patient.objects.all()
                     if not request.user.is_admin_level:
-                        token_qs = token_qs.filter(
-                            registered_at_hospital=request.user.hospital
-                        )
-                    
+                        token_qs = token_qs.filter(registered_at_hospital=request.user.hospital)
+
                     for th in token_hashes:
                         token_qs = token_qs.filter(search_tokens__token_hash=th)
-                    
+
                     token_qs = token_qs.select_related("registered_at_hospital").distinct()
-                    
+
                     for p in token_qs:
                         if p.pk not in seen:
                             patients.append(p)
@@ -119,6 +136,7 @@ class PatientSearchView(APIView):
 
             if q:
                 import hashlib
+
                 hashed_query = hashlib.sha256(q.encode("utf-8")).hexdigest()
                 log_action(
                     request,
@@ -209,6 +227,7 @@ class PatientDetailView(APIView):
 
     def _get_patient_or_403(self, request, universal_id):
         from django.db.models import Count, Q
+
         patient = get_object_or_404(
             Patient.objects.annotate(
                 active_alerts_count=Count("alerts", filter=Q(alerts__is_active=True))
@@ -357,7 +376,9 @@ class BreakGlassView(APIView):
 
         expires_at = timezone.now() + timezone.timedelta(hours=BREAK_GLASS_DURATION_HOURS)
 
-        # Use select_for_update inside a transaction to prevent duplicate concurrent grants
+        # Reuse an existing active grant within an atomic transaction. Note: select_for_update()
+        # locks an existing grant row if present, but cannot lock non-existent rows prior to creation;
+        # concurrent initial requests may thus create duplicate grants (both grant valid access).
         with transaction.atomic():
             # Find an existing active (non-expired) grant to avoid duplicate creation
             existing = (
@@ -438,12 +459,13 @@ class PatientEncounterListCreateView(APIView):
         from rest_framework.pagination import PageNumberPagination
 
         from records.models import LabResult
+
         abnormal_labs = LabResult.objects.filter(encounter=OuterRef("pk"), is_abnormal=True)
-        encounters = patient.encounters.select_related(
-            "created_by", "created_at_hospital"
-        ).annotate(
-            has_abnormal_labs=Exists(abnormal_labs)
-        ).order_by("-created_at")
+        encounters = (
+            patient.encounters.select_related("created_by", "created_at_hospital")
+            .annotate(has_abnormal_labs=Exists(abnormal_labs))
+            .order_by("-created_at")
+        )
 
         paginator = PageNumberPagination()
         page = paginator.paginate_queryset(encounters, request)

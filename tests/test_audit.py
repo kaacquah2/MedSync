@@ -233,6 +233,7 @@ class TestAuditCommandsAndRetention:
     def test_verify_audit_chain_passes_on_valid_chain(self, db, doctor_a, rf):
         """verify_audit_chain command passes with exit code 0 when chain is valid."""
         from django.core.management import call_command
+
         from audit.utils import log_action
 
         request = rf.get("/")
@@ -248,6 +249,7 @@ class TestAuditCommandsAndRetention:
         """verify_audit_chain command catches a tampered row and exits with code 1."""
         from django.core.management import call_command
         from django.db import connection
+
         from audit.utils import log_action
 
         request = rf.get("/")
@@ -284,6 +286,7 @@ class TestAuditCommandsAndRetention:
         """verify_audit_chain --rebuild repairs broken hashes and restores chain validity."""
         from django.core.management import call_command
         from django.db import connection
+
         from audit.utils import log_action
 
         request = rf.get("/")
@@ -315,16 +318,35 @@ class TestAuditCommandsAndRetention:
         with pytest.raises(SystemExit):
             call_command("verify_audit_chain")
 
-        # After rebuild: repair hashes and verify passes
-        call_command("verify_audit_chain", rebuild=True)
+        from django.core.management.base import CommandError
+
+        from audit.models import AuditLog
+
+        # Rebuild without explicit flag must raise CommandError
+        with pytest.raises(CommandError) as exc_info:
+            call_command("verify_audit_chain", rebuild=True)
+        assert "destroys" in str(exc_info.value).lower()
+
+        # Rebuild with explicit acknowledgment repairs hashes and writes rebuild audit entry
+        call_command(
+            "verify_audit_chain", rebuild=True, i_understand_this_destroys_tamper_evidence=True
+        )
+
+        rebuild_entry = AuditLog.objects.order_by("-pk").first()
+        assert rebuild_entry.action == AuditLog.Action.REBUILD_AUDIT_CHAIN
+        assert rebuild_entry.extra.get("rebuilt_rows") == 3
+
+        # Verify passes with the new entry intact
         call_command("verify_audit_chain")
 
     def test_prune_audit_logs_preserves_remaining_chain_integrity(self, db, doctor_a, rf):
         """Pruning older logs leaves the remaining chain valid according to verify_audit_chain."""
+        from datetime import timedelta
+
         from django.core.management import call_command
         from django.utils import timezone
+
         from audit.utils import log_action
-        from datetime import timedelta
 
         request = rf.get("/")
         request.user = doctor_a
@@ -333,6 +355,7 @@ class TestAuditCommandsAndRetention:
 
         # Backdate first entry to 60 days ago (bypassing model save immutability guard in DB)
         from django.db import connection
+
         with connection.cursor() as cursor:
             if connection.vendor == "sqlite":
                 cursor.execute("DROP TRIGGER IF EXISTS trg_audit_log_immutable_update")
@@ -340,7 +363,9 @@ class TestAuditCommandsAndRetention:
                 cursor.execute("ALTER TABLE audit_auditlog DISABLE TRIGGER trg_audit_log_immutable")
 
             old_time = (timezone.now() - timedelta(days=60)).isoformat()
-            cursor.execute("UPDATE audit_auditlog SET timestamp = %s WHERE id = %s", [old_time, old_entry.pk])
+            cursor.execute(
+                "UPDATE audit_auditlog SET timestamp = %s WHERE id = %s", [old_time, old_entry.pk]
+            )
 
             if connection.vendor == "sqlite":
                 cursor.execute(
@@ -380,8 +405,129 @@ class TestComplianceReportingQueries:
         assert AuditLog.objects.compliance_report(hospital=doctor_a.hospital).count() == 3
 
 
+# ── Proxy IP & SSL Header Verification ─────────────────────────────────────
+
+
+class TestGetIp:
+    def test_get_ip_none_or_missing_meta(self):
+        from audit.utils import _get_ip
+
+        assert _get_ip(None) is None
+        assert _get_ip(object()) is None
+
+    def test_get_ip_remote_addr_fallback(self, rf):
+        from audit.utils import _get_ip
+
+        request = rf.get("/")
+        request.META["REMOTE_ADDR"] = "192.168.1.50"
+        assert _get_ip(request) == "192.168.1.50"
+
+    def test_get_ip_single_proxy_trusted_count_1(self, rf, settings):
+        from audit.utils import _get_ip
+
+        settings.TRUSTED_PROXY_COUNT = 1
+        request = rf.get("/")
+        request.META["HTTP_X_FORWARDED_FOR"] = "203.0.113.195"
+        assert _get_ip(request) == "203.0.113.195"
+
+    def test_get_ip_spoofed_client_header_rejected(self, rf, settings):
+        from audit.utils import _get_ip
+
+        settings.TRUSTED_PROXY_COUNT = 1
+        request = rf.get("/")
+        # Attacker sent XFF: 10.0.0.1, Render proxy appended real client IP 203.0.113.195
+        request.META["HTTP_X_FORWARDED_FOR"] = "10.0.0.1, 203.0.113.195"
+        assert _get_ip(request) == "203.0.113.195"
+
+    def test_get_ip_multi_hop_trusted_proxy(self, rf, settings):
+        from audit.utils import _get_ip
+
+        settings.TRUSTED_PROXY_COUNT = 2
+        request = rf.get("/")
+        # Client -> CDN -> Render Proxy -> Gunicorn
+        request.META["HTTP_X_FORWARDED_FOR"] = "1.1.1.1, 203.0.113.195, 172.68.1.1"
+        assert _get_ip(request) == "203.0.113.195"
+
+    def test_get_ip_fewer_hops_than_trusted_count(self, rf, settings):
+        from audit.utils import _get_ip
+
+        settings.TRUSTED_PROXY_COUNT = 5
+        request = rf.get("/")
+        request.META["HTTP_X_FORWARDED_FOR"] = "203.0.113.195"
+        assert _get_ip(request) == "203.0.113.195"
+
+
+class TestProxySecuritySettings:
+    def test_secure_proxy_ssl_header_recognizes_https(self, rf, settings):
+        settings.SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+        request = rf.get("/", HTTP_X_FORWARDED_PROTO="https")
+        assert request.is_secure() is True
+
+    def test_secure_proxy_ssl_header_rejects_http(self, rf, settings):
+        settings.SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+        request = rf.get("/", HTTP_X_FORWARDED_PROTO="http")
+        assert request.is_secure() is False
+
+    def test_security_middleware_no_redirect_loop_behind_proxy(self, rf, settings):
+        from django.http import HttpResponse
+        from django.middleware.security import SecurityMiddleware
+
+        settings.SECURE_SSL_REDIRECT = True
+        settings.SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+        middleware = SecurityMiddleware(get_response=lambda req: HttpResponse("OK"))
+
+        # Behind Render TLS proxy: X-Forwarded-Proto is https -> no redirect loop (200 OK)
+        request = rf.get("/healthz/", HTTP_X_FORWARDED_PROTO="https")
+        response = middleware(request)
+        assert response.status_code == 200
+
+        # Insecure request: redirects to https (301 Moved Permanently)
+        request_insecure = rf.get("/healthz/")
+        response_insecure = middleware(request_insecure)
+        assert response_insecure.status_code == 301
+
+
+class TestAuditMiddleware:
+    def test_audit_middleware_sets_and_clears_request(self, rf):
+        from django.http import HttpResponse
+
+        from audit.middleware import AuditMiddleware, get_current_request
+
+        captured_request = {}
+
+        def dummy_get_response(req):
+            captured_request["inside"] = get_current_request()
+            return HttpResponse("OK")
+
+        middleware = AuditMiddleware(get_response=dummy_get_response)
+        request = rf.get("/api/test/")
+
+        response = middleware(request)
+
+        assert response.status_code == 200
+        assert captured_request.get("inside") is request
+        assert get_current_request() is None
+
+    def test_audit_middleware_clears_request_on_exception(self, rf):
+        from audit.middleware import AuditMiddleware, get_current_request
+
+        captured_request = {}
+
+        def failing_get_response(req):
+            captured_request["inside"] = get_current_request()
+            raise RuntimeError("Database connection failure")
+
+        middleware = AuditMiddleware(get_response=failing_get_response)
+        request = rf.get("/api/test/")
+
+        with pytest.raises(RuntimeError, match="Database connection failure"):
+            middleware(request)
+
+        assert captured_request.get("inside") is request
+        assert get_current_request() is None
+
+
 # ── pytest fixture ─────────────────────────────────────────────────────────
 @pytest.fixture
 def rf():
     return RequestFactory()
-

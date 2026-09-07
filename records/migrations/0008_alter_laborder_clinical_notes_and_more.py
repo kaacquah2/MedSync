@@ -5,20 +5,19 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('records', '0007_encounter_rls'),
+        ("records", "0007_encounter_rls"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='laborder',
-            name='clinical_notes',
-            field=core.fields.EncryptedTextField(blank=True, verbose_name='Clinical notes for lab'),
+            model_name="laborder",
+            name="clinical_notes",
+            field=core.fields.EncryptedTextField(blank=True, verbose_name="Clinical notes for lab"),
         ),
         migrations.AlterField(
-            model_name='medicationadministration',
-            name='notes',
+            model_name="medicationadministration",
+            name="notes",
             field=core.fields.EncryptedTextField(blank=True),
         ),
     ]

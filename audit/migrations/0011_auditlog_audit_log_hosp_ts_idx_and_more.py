@@ -4,18 +4,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('audit', '0010_auditlog_rls'),
+        ("audit", "0010_auditlog_rls"),
     ]
 
     operations = [
         migrations.AddIndex(
-            model_name='auditlog',
-            index=models.Index(fields=['actor_hospital', 'timestamp'], name='audit_log_hosp_ts_idx'),
+            model_name="auditlog",
+            index=models.Index(
+                fields=["actor_hospital", "timestamp"], name="audit_log_hosp_ts_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='auditlog',
-            index=models.Index(fields=['action', 'timestamp'], name='audit_log_action_ts_idx'),
+            model_name="auditlog",
+            index=models.Index(fields=["action", "timestamp"], name="audit_log_action_ts_idx"),
         ),
     ]

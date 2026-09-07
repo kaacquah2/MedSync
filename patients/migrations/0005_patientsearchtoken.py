@@ -5,23 +5,34 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('patients', '0004_alter_patientalert_label_alter_patientalert_reaction'),
+        ("patients", "0004_alter_patientalert_label_alter_patientalert_reaction"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='PatientSearchToken',
+            name="PatientSearchToken",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('token_hash', models.CharField(db_index=True, max_length=64)),
-                ('patient', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='search_tokens', to='patients.patient')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                ("token_hash", models.CharField(db_index=True, max_length=64)),
+                (
+                    "patient",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="search_tokens",
+                        to="patients.patient",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Patient Search Token',
-                'verbose_name_plural': 'Patient Search Tokens',
-                'unique_together': {('patient', 'token_hash')},
+                "verbose_name": "Patient Search Token",
+                "verbose_name_plural": "Patient Search Tokens",
+                "unique_together": {("patient", "token_hash")},
             },
         ),
     ]

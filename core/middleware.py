@@ -65,7 +65,9 @@ class SessionInterruptedMiddleware(SessionMiddleware):
         try:
             return super().__call__(request)
         except SessionInterrupted:
-            logger.info("Session interrupted for request path: %s (likely concurrent logout)", request.path)
+            logger.info(
+                "Session interrupted for request path: %s (likely concurrent logout)", request.path
+            )
             if request.path.startswith("/api/"):
                 return JsonResponse(
                     {"error": "Session interrupted. The session was deleted concurrently."},

@@ -81,7 +81,9 @@ class WardListCreateView(APIView):
         serializer.is_valid(raise_exception=True)
         if "hospital" not in request.data and request.user.hospital:
             serializer.validated_data["hospital"] = request.user.hospital
-        elif request.user.role != "super_admin" and not getattr(request.user, "is_superuser", False):
+        elif request.user.role != "super_admin" and not getattr(
+            request.user, "is_superuser", False
+        ):
             supplied = serializer.validated_data.get("hospital")
             if supplied and supplied != request.user.hospital:
                 return Response(
@@ -103,7 +105,11 @@ class WardDetailView(APIView):
 
     def patch(self, request, pk):
         ward = get_object_or_404(Ward, pk=pk)
-        if request.user.role != "super_admin" and not getattr(request.user, "is_superuser", False) and ward.hospital != request.user.hospital:
+        if (
+            request.user.role != "super_admin"
+            and not getattr(request.user, "is_superuser", False)
+            and ward.hospital != request.user.hospital
+        ):
             return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
         serializer = WardSerializer(ward, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)

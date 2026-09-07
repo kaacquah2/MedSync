@@ -52,7 +52,8 @@ Repudiation threats arise when an actor can deny performing an action.
 |--------|--------------|----------------------|---------------|
 | **PHI in database plaintext** | DB backup or SQL injection exposes patient names/diagnoses | Fernet AES-128-CBC + HMAC on all PII/PHI columns; DB backup contains only ciphertext | Low — mitigated by encryption at application layer + Neon storage-level encryption |
 | **PHI in logs** | Application logs capture sensitive field values | Custom encrypted fields (`EncryptedCharField`) never log decrypted values; Django logging configured at WARNING level | Moderate — DEBUG logs could reveal decrypted values if DEBUG=True in production |
-| **Blind-index exposure** | HMAC values in DB reveal whether two patients share a name | HMAC is keyed with `BLIND_INDEX_KEY`; without the key, the HMAC reveals nothing about the plaintext | Low |
+| **Blind-index exposure (exact match)** | HMAC values in DB reveal whether two patients share a name | HMAC is keyed with `BLIND_INDEX_KEY`; without the key, the HMAC reveals nothing about the plaintext | Low |
+| **Trigram token de-anonymization (partial search)** | Small keyspace (~17.5k) of 3-character tokens in `PatientSearchToken` allows precomputed rainbow tables or frequency analysis to reconstruct names | Independent `BLIND_INDEX_KEY` enforced in production (`DEBUG=False`); partial search scoped to home hospital for non-admins; all searches audit-logged (`SEARCH_PATIENT`) | Moderate — inherent trade-off of deterministic substring indexing |
 | **Excessive data exposure in API** | Views return more data than needed | Views use Django's ORM with explicit field selection; templates render only what is needed | Moderate — no formal output encoding review performed |
 | **Encryption key exposure** | `FIELD_ENCRYPTION_KEY` in source code or logs | Key stored in environment variable; `.env` file is `.gitignore`d; Docker environment variable | Moderate — key management relies on environment security; production should use a KMS |
 
@@ -104,11 +105,12 @@ Repudiation threats arise when an actor can deny performing an action.
 |------|----------|-------|
 | Encryption key management | **HIGH** | In production, `FIELD_ENCRYPTION_KEY` and `BLIND_INDEX_KEY` must be stored in a secret manager (AWS Secrets Manager, HashiCorp Vault, GCP Secret Manager) — not an `.env` file. Loss of these keys = permanent loss of all encrypted data. |
 | MFA disabled in demo mode | **MEDIUM** | `MFA_ENFORCED=False` when `DEBUG=True` is intentional for demo usability, but must be set to `True` before any real-data deployment. |
-| Partial-name search O(n) scan | **LOW** | If the search query is less than 5 characters, a full-table Python scan is performed. Performance degrades linearly with patient count. A search index (e.g. pgvector, Elasticsearch, deterministic encryption) is the production fix. |
+| Partial-name search trigram entropy | **MODERATE** | Substring lookups use HMAC-SHA256 trigrams in `PatientSearchToken` (migrations 0005/0006), eliminating O(N) memory scans. However, the small keyspace (~17.5k Latin trigrams) is vulnerable to offline dictionary attack if `BLIND_INDEX_KEY` is compromised. Mitigated by key separation, hospital-scoped searches, and audit logging (`SEARCH_PATIENT`). See `known_limitations.md` §1. |
 | No row-level access control | **MEDIUM** | Any authenticated clinical role can view any patient's record. For strict data minimisation (GDPR/HIPAA), patient consent management (scoped access per hospital) would be required. |
 | Shared workstation risk | **MEDIUM** | 1-hour session timeout partially mitigates this, but physical access to an unlocked workstation still allows unauthorized access. Screen-lock policies and physical controls are required. |
 | No audit log integrity proof | **MEDIUM** | Audit entries are append-only at the application layer. A SYSTEM_ADMIN with direct DB access can bypass this. For production, write-ahead logs or an immutable log store (e.g. Neon's branching, or a WORM-compliant store) should be used. |
 | No FHIR/HL7 interoperability | **LOW** | The system uses a bespoke data model. Integration with national health information exchange would require an HL7 FHIR R4 API layer. |
+| Break-glass MFA re-verification skippable | **MEDIUM** | Break-glass MFA re-verification is conditional, not unconditional. In `api/views/patients.py::BreakGlassView`, TOTP re-verification is only required if the user has an existing confirmed TOTP device. If a clinician reaches a session without having enrolled a TOTP device, the break-glass view bypasses re-verification and issues the grant with `mfa_reverified=False`. This design intentionally avoids locking out clinicians during life-critical emergencies, but means clinicians who have not enrolled TOTP avoid second-factor re-verification entirely. Mitigated by append-only audit logging of `mfa_reverified` status and mandatory administrative break-glass reviews. |
 
 ---
 
@@ -130,7 +132,7 @@ The following controls were added in the current build sprint and update the ana
 | Control | Implementation | Threat mitigated |
 |---|---|---|
 | **Object-level inter-hospital access gate** | `access/permissions.py::can_access_patient()` — denies cross-hospital access without TreatmentRelationship, BreakGlassAccess, or admin privilege | IDOR (cross-hospital); §3 §1.6 |
-| **Break-the-glass** | `access/models.py::BreakGlassAccess`; `access/views.py::break_glass_request` — reason-required, re-MFA, 1-hour TTL, audited | Balances clinical access with auditability; see ADR-006 |
+| **Break-the-glass** | `access/models.py::BreakGlassAccess`; `api/views/patients.py::BreakGlassView` — reason-required, conditional re-MFA (only enforced if user has enrolled TOTP device; not unconditional), 1-hour TTL, audited with `mfa_reverified` status | Balances clinical access with auditability; see ADR-006 |
 | **Treatment relationship auto-creation** | `access/permissions.py::ensure_treatment_relationship` — called on encounter creation | Ensures ongoing care is not blocked by the gate |
 | **Audit hash chain (tamper evidence)** | `audit/models.py::compute_row_hash`; `audit/utils.py::log_action`; SHA-256 chain per row | Tampering with audit log is detectable (§1.2 residual risk resolved) |
 | **Postgres immutability trigger** | `audit/migrations/0003_auditlog_immutability_trigger.py` | DB-level enforcement of audit immutability |

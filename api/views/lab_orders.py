@@ -115,11 +115,17 @@ class PatientLabOrderListCreateView(APIView):
                 patient=patient,
                 is_cross_hospital=True,
             )
+            store_idempotency(cache_key, None)
             return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
 
-        serializer = LabOrderSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        order = serializer.save(patient=patient, ordered_by=request.user)
+        try:
+            serializer = LabOrderSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            order = serializer.save(patient=patient, ordered_by=request.user)
+        except Exception:
+            store_idempotency(cache_key, None)
+            raise
+
         log_action(request, action="CREATE_LAB_ORDER", target=order, patient=patient)
         res = Response(LabOrderSerializer(order).data, status=status.HTTP_201_CREATED)
         store_idempotency(cache_key, res)
@@ -211,4 +217,6 @@ class LabOrderWorklistView(APIView):
             qs = qs.filter(ordered_by__hospital=request.user.hospital)
 
         limit = min(int(request.query_params.get("limit", 200)), 500)
-        return Response(LabOrderSerializer(qs.order_by("priority", "created_at")[:limit], many=True).data)
+        return Response(
+            LabOrderSerializer(qs.order_by("priority", "created_at")[:limit], many=True).data
+        )

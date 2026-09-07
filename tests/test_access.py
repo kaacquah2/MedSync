@@ -165,6 +165,7 @@ class TestPatientDetailGate:
 class TestBreakGlassRequest:
     def setup_method(self):
         from api.permissions import BreakGlassThrottle
+
         BreakGlassThrottle().cache.clear()
 
     def test_valid_submission_creates_grant(self, client_as_doctor_b, doctor_b, patient_a):
@@ -218,14 +219,21 @@ class TestBreakGlassRequest:
     def test_break_glass_throttling(self, client_as_doctor_b, patient_a):
         """Break-glass endpoint must enforce BreakGlassThrottle (rate limited to 5/hour)."""
         from api.permissions import BreakGlassThrottle
+
         BreakGlassThrottle().cache.clear()
 
         for i in range(5):
-            res = _break_glass(client_as_doctor_b, patient_a.universal_id, reason=f"Emergency reason #{i} for break glass")
+            res = _break_glass(
+                client_as_doctor_b,
+                patient_a.universal_id,
+                reason=f"Emergency reason #{i} for break glass",
+            )
             assert res.status_code in (200, 201)
 
         # 6th attempt must be throttled with HTTP 429
-        throttled_res = _break_glass(client_as_doctor_b, patient_a.universal_id, reason="Emergency reason #6 for break glass")
+        throttled_res = _break_glass(
+            client_as_doctor_b, patient_a.universal_id, reason="Emergency reason #6 for break glass"
+        )
         assert throttled_res.status_code == 429
 
 

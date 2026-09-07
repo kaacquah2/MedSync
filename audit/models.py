@@ -17,6 +17,7 @@ Key field:
 """
 
 import hashlib
+import hmac
 import json
 
 from django.db import models
@@ -67,6 +68,7 @@ class AuditLog(models.Model):
         MFA_ENROLLED = "MFA_ENROLLED", "MFA Enrolled"
         MFA_VERIFIED = "MFA_VERIFIED", "MFA Verified"
         MFA_REMOVED = "MFA_REMOVED", "MFA Device Removed"
+        EMAIL_OTP_SENT = "EMAIL_OTP_SENT", "Email OTP Sent"
         # Search
         SEARCH_PATIENT = "SEARCH_PATIENT", "Patient Search"
         # Patient alerts / allergies
@@ -80,6 +82,8 @@ class AuditLog(models.Model):
         RECOVERY_CODES_REGENERATED = "RECOVERY_CODES_REGENERATED", "Recovery Codes Regenerated"
         SESSIONS_REVOKED = "SESSIONS_REVOKED", "Sessions Revoked (Sign Out Everywhere)"
         # Staff lifecycle
+        STAFF_CREATED = "STAFF_CREATED", "Staff Account Created"
+        STAFF_UPDATED = "STAFF_UPDATED", "Staff Account Updated"
         STAFF_DEACTIVATED = "STAFF_DEACTIVATED", "Staff Account Deactivated"
         STAFF_ACTIVATED = "STAFF_ACTIVATED", "Staff Account Activated"
         # Vitals
@@ -105,6 +109,7 @@ class AuditLog(models.Model):
         EXPORT_PDF = "EXPORT_PDF", "Patient PDF Export"
         # Security
         VALIDATE_AUDIT_CHAIN = "VALIDATE_AUDIT_CHAIN", "Audit Chain Validated"
+        REBUILD_AUDIT_CHAIN = "REBUILD_AUDIT_CHAIN", "Audit Chain Rebuilt"
         # Staff password management
         RESET_STAFF_PASSWORD = "RESET_STAFF_PASSWORD", "Staff Password Reset"
         # Patient documents
@@ -184,15 +189,27 @@ class AuditLog(models.Model):
     # ── Hash-chain helpers ────────────────────────────────────────────────
 
     @classmethod
-    def compute_row_hash(cls, prev_hash: str, fields: dict) -> str:
+    def compute_row_hash(
+        cls, prev_hash: str, fields: dict, hmac_key: str | bytes | None = None
+    ) -> str:
         """
-        Compute sha256(prev_hash + canonical_json(fields)).
+        Compute sha256(prev_hash + canonical_json(fields)), or HMAC-SHA256
+        if AUDIT_CHAIN_HMAC_KEY is configured in settings or hmac_key is provided.
 
         Canonical JSON uses sort_keys=True and compact separators=(',', ':')
         to ensure stable, platform-independent serialization.
         """
+        from django.conf import settings
+
         canonical = json.dumps(fields, sort_keys=True, default=str, separators=(",", ":"))
         payload = ((prev_hash or "") + canonical).encode("utf-8")
+
+        key = hmac_key if hmac_key is not None else getattr(settings, "AUDIT_CHAIN_HMAC_KEY", None)
+        if key:
+            if isinstance(key, str):
+                key = key.encode("utf-8")
+            return hmac.new(key, payload, hashlib.sha256).hexdigest()
+
         return hashlib.sha256(payload).hexdigest()
 
     @classmethod
@@ -240,8 +257,10 @@ class AuditLogReview(models.Model):
 class AuditLogArchiveAnchor(models.Model):
     """
     Stores the cryptographic anchor and file validation properties for a pruned range
-    of historical audit logs archived in offline WORM storage.
+    of historical audit logs archived in offline WORM storage, or periodic checkpoints
+    of the active live audit chain.
     """
+
     archive_filename = models.CharField(max_length=255, unique=True)
     last_row_pk = models.PositiveIntegerField(unique=True)
     last_row_hash = models.CharField(max_length=64)
@@ -256,3 +275,10 @@ class AuditLogArchiveAnchor(models.Model):
     def __str__(self):
         return f"ArchiveAnchor({self.archive_filename}, PK={self.last_row_pk})"
 
+    def save(self, *args, **kwargs):
+        if self.pk is not None:
+            raise ValueError("AuditLogArchiveAnchor entries are immutable and cannot be updated.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("AuditLogArchiveAnchor entries cannot be deleted.")

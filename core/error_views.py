@@ -61,4 +61,3 @@ def handler_500(request):
             status=500,
         )
     return render(request, "500.html", status=500)
-

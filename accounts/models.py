@@ -11,11 +11,19 @@ Roles (from narrowest to broadest):
 """
 
 import hashlib
+import hmac
 import secrets
 
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
+
+
+def hash_recovery_code(code: str) -> str:
+    """Keyed HMAC-SHA256 of the recovery code using SECRET_KEY."""
+    key = settings.SECRET_KEY.encode()
+    return hmac.new(key, code.strip().encode(), hashlib.sha256).hexdigest()
 
 
 class User(AbstractUser):
@@ -93,7 +101,7 @@ class RecoveryCodeManager(models.Manager):
         plaintext_codes = []
         for _ in range(RECOVERY_CODE_COUNT):
             code = secrets.token_urlsafe(RECOVERY_CODE_LENGTH)[:RECOVERY_CODE_LENGTH]
-            code_hash = hashlib.sha256(code.encode()).hexdigest()
+            code_hash = hash_recovery_code(code)
             self.create(user=user, code_hash=code_hash)
             plaintext_codes.append(code)
 
@@ -104,11 +112,19 @@ class RecoveryCodeManager(models.Manager):
         Check whether *code* is a valid unused recovery code for *user*.
         If valid, marks it used and returns True.  Returns False otherwise.
         """
-        code_hash = hashlib.sha256(code.strip().encode()).hexdigest()
+        clean_code = code.strip()
+        # Primary check: Keyed HMAC-SHA256
+        hmac_hash = hash_recovery_code(clean_code)
         try:
-            rc = self.get(user=user, code_hash=code_hash, used=False)
+            rc = self.get(user=user, code_hash=hmac_hash, used=False)
         except self.model.DoesNotExist:
-            return False
+            # Fallback check: Legacy unsalted SHA-256 for codes created prior to migration
+            legacy_hash = hashlib.sha256(clean_code.encode()).hexdigest()
+            try:
+                rc = self.get(user=user, code_hash=legacy_hash, used=False)
+            except self.model.DoesNotExist:
+                return False
+
         rc.used = True
         rc.used_at = timezone.now()
         rc.save(update_fields=["used", "used_at"])
@@ -151,6 +167,7 @@ class RecoveryCode(models.Model):
 
 
 EMAIL_OTP_EXPIRY_MINUTES = 10
+EMAIL_OTP_MAX_ATTEMPTS = 5
 
 
 class EmailOTPManager(models.Manager):
@@ -167,34 +184,45 @@ class EmailOTPManager(models.Manager):
         code_hash = hashlib.sha256(plaintext_code.encode()).hexdigest()
         expires_at = timezone.now() + timezone.timedelta(minutes=EMAIL_OTP_EXPIRY_MINUTES)
 
-        self.create(user=user, code_hash=code_hash, expires_at=expires_at)
+        self.create(user=user, code_hash=code_hash, expires_at=expires_at, attempts=0)
         return plaintext_code
 
     def verify_and_consume(self, user, code: str) -> bool:
         """
         Check whether *code* is a valid unexpired Email OTP for *user*.
         If valid, marks it used and returns True. Returns False otherwise.
+        Burns the OTP if failed attempts reach EMAIL_OTP_MAX_ATTEMPTS (5).
         """
         code_str = code.strip()
         if not code_str or not code_str.isdigit() or len(code_str) != 6:
             return False
 
-        code_hash = hashlib.sha256(code_str.encode()).hexdigest()
         now = timezone.now()
-        try:
-            otp = self.get(
-                user=user,
-                code_hash=code_hash,
-                used=False,
-                expires_at__gt=now,
-            )
-        except self.model.DoesNotExist:
+        otp = self.filter(user=user, used=False, expires_at__gt=now).order_by("-created_at").first()
+        if not otp:
             return False
 
-        otp.used = True
-        otp.used_at = now
-        otp.save(update_fields=["used", "used_at"])
-        return True
+        if otp.attempts >= EMAIL_OTP_MAX_ATTEMPTS:
+            otp.used = True
+            otp.used_at = now
+            otp.save(update_fields=["used", "used_at"])
+            return False
+
+        code_hash = hashlib.sha256(code_str.encode()).hexdigest()
+        if secrets.compare_digest(code_hash, otp.code_hash):
+            otp.used = True
+            otp.used_at = now
+            otp.save(update_fields=["used", "used_at"])
+            return True
+
+        otp.attempts += 1
+        if otp.attempts >= EMAIL_OTP_MAX_ATTEMPTS:
+            otp.used = True
+            otp.used_at = now
+            otp.save(update_fields=["attempts", "used", "used_at"])
+        else:
+            otp.save(update_fields=["attempts"])
+        return False
 
 
 class EmailOTP(models.Model):
@@ -212,6 +240,10 @@ class EmailOTP(models.Model):
         max_length=64,
         help_text="SHA-256 hex digest of the 6-digit email OTP.",
     )
+    attempts = models.PositiveSmallIntegerField(
+        default=0,
+        help_text="Number of failed verification attempts. Burned after 5.",
+    )
     used = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
@@ -227,4 +259,3 @@ class EmailOTP(models.Model):
     def __str__(self):
         status = "used" if self.used else "active"
         return f"EmailOTP({self.user.username}, {status})"
-

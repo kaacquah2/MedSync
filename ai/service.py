@@ -1,23 +1,30 @@
 """
-AI query service — grounded, privacy-aware clinical decision support.
+AI query service — grounded clinical decision support.
 
 Architecture:
-  - Provider abstraction: Gemini 2.5 Flash (free) or local Ollama (no PHI egress)
+  - Provider abstraction: local Ollama (production, zero egress) or Gemini (development/testing only)
+  - Production compliance: In production, AI_PROVIDER=ollama is required. Ollama runs
+    within the local/hospital boundary with zero PHI egress (bypassing outbound proxies),
+    complying with HIPAA and Ghana Data Protection Act 2012.
+  - Development provider: Gemini is supported for local development and testing only (DEBUG=True).
+    Sending clinical records to external cloud APIs involves egress of Protected Health Information (PHI);
+    the free tier provides no BAA or DPA, and partial field masking does not constitute legal de-identification.
   - Grounding: answers drawn ONLY from the patient's records the caller is
     authorised to see — never from the model's training data
   - All queries audited via log_action("AI_QUERY")
   - Hard guardrails enforced in the prompt (cite records, refuse if unknown)
 
-Quick-start (Gemini):
-  1. Get a free API key at aistudio.google.com
-  2. Add GEMINI_API_KEY=<key> to your .env
-  3. AI_PROVIDER=gemini (default)
+Configuration:
+  1. Production / Recommended (Ollama):
+     - Install Ollama: https://ollama.com
+     - `ollama pull llama3.1:8b`
+     - Set AI_PROVIDER=ollama (default)
+     - Zero PHI leaves the server.
 
-Local / privacy-first (Ollama):
-  1. Install Ollama: https://ollama.com
-  2. `ollama pull llama3.1:8b`
-  3. Set AI_PROVIDER=ollama in .env
-  4. No PHI leaves your machine.
+  2. Development only (Gemini):
+     - Requires DEBUG=True (or explicit ALLOW_EXTERNAL_AI_IN_PRODUCTION=True opt-in).
+     - Add GEMINI_API_KEY=<key> to your .env
+     - Set AI_PROVIDER=gemini
 """
 
 from __future__ import annotations
@@ -63,52 +70,70 @@ def _build_user_prompt(context: str, question: str) -> str:
     )
 
 
-def _build_prompt(context: str, question: str) -> str:
-    """Assemble the complete AI prompt string using concatenation instead of str.format.
-
-    str.format would interpret curly braces in patient data as format specifiers
-    and allow patient-supplied text to close the <PATIENT_RECORDS> block and
-    inject instructions. Concatenation avoids both issues; closing tags in the
-    context are also escaped as a belt-and-suspenders guard.
-    """
-    return _SYSTEM_PROMPT_HEADER + "\n\n" + _build_user_prompt(context, question)
-
-
 # ── Context builder ────────────────────────────────────────────────────────────
 
 
-def build_patient_context(patient, encounters, records, vitals, deidentify: bool = False) -> str:
+def build_patient_context(
+    patient,
+    encounters,
+    records,
+    vitals,
+    deidentify: bool = False,
+    mask_identifiers: bool | None = None,
+) -> str:
     """
     Build a text context block from the patient's records for use in the AI prompt.
     Only includes data the caller has already been authorised to see.
     Encrypted fields decrypt transparently when accessed as Python attributes.
-    If deidentify=True, removes explicit identifiers (name, raw NHID, exact DOB).
+
+    WARNING ON DE-IDENTIFICATION:
+    Setting mask_identifiers=True (or legacy deidentify=True) masks direct identifiers
+    (NHID, exact DOB -> age, facility name), but does NOT constitute legal de-identification
+    under HIPAA Safe Harbor (§164.514(b)(2)) or Ghana Data Protection Act 2012.
+    Unstructured clinical notes, encounter dates, vitals timestamps, and diagnostic narratives
+    remain present and can contain re-identifying details.
     """
+    if mask_identifiers is None:
+        mask_identifiers = deidentify
+
     lines: list[str] = []
 
     # Demographics
     lines.append("== PATIENT INFORMATION ==")
-    if deidentify:
+    if mask_identifiers:
         lines.append("NHID: NHID-REDACTED")
         try:
             from datetime import date
+
             dob_str = patient.date_of_birth
             parts = [int(p) for p in dob_str.split("-")]
             if len(parts) == 3:
                 birth = date(parts[0], parts[1], parts[2])
                 today = date.today()
-                age = today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
+                age = (
+                    today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
+                )
                 lines.append(f"Age: {age}")
             else:
                 lines.append("Age: Unknown")
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "Failed to parse date_of_birth for age calculation (patient=%s): %s",
+                getattr(patient, "universal_id", "?"),
+                exc,
+            )
             lines.append("Age: Unknown")
     else:
         lines.append(f"NHID: {patient.universal_id}")
         try:
             lines.append(f"Date of Birth: {patient.date_of_birth}")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "Failed to format date_of_birth for patient %s: %s",
+                getattr(patient, "universal_id", "?"),
+                exc,
+            )
+
     lines.append(f"Sex: {patient.get_sex_display()}")
     lines.append(f"Blood Group: {patient.blood_group}")
 
@@ -123,8 +148,13 @@ def build_patient_context(patient, encounters, records, vitals, deidentify: bool
                     f"Severity: {a.get_severity_display()}"
                     + (f" — Reaction: {a.reaction}" if a.reaction else "")
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "Failed to format alert %s for patient %s: %s",
+                    getattr(a, "pk", "?"),
+                    getattr(patient, "universal_id", "?"),
+                    exc,
+                )
 
     # Vitals
     if vitals:
@@ -148,7 +178,11 @@ def build_patient_context(patient, encounters, records, vitals, deidentify: bool
         lines.append(f"\n== ENCOUNTERS ({len(encounters)} total) ==")
         for i, enc in enumerate(encounters[:10], 1):
             try:
-                hosp_name = "Facility Redacted" if deidentify else (enc.created_at_hospital.name if enc.created_at_hospital else 'Unknown')
+                hosp_name = (
+                    "Facility Redacted"
+                    if mask_identifiers
+                    else (enc.created_at_hospital.name if enc.created_at_hospital else "Unknown")
+                )
                 lines.append(
                     f"\n[Encounter {i}] "
                     f"{enc.get_encounter_type_display()} — "
@@ -165,8 +199,13 @@ def build_patient_context(patient, encounters, records, vitals, deidentify: bool
                     try:
                         icd = f" ({d.icd_code})" if d.icd_code else ""
                         lines.append(f"  [Diagnosis {i}.{j}]{icd}: {d.description}")
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to format diagnosis %s in encounter %s: %s",
+                            getattr(d, "pk", "?"),
+                            getattr(enc, "pk", "?"),
+                            exc,
+                        )
 
                 # Prescriptions
                 for j, rx in enumerate(enc.prescriptions.all(), 1):
@@ -175,8 +214,13 @@ def build_patient_context(patient, encounters, records, vitals, deidentify: bool
                             f"  [Prescription {i}.{j}]: {rx.drug_name} — "
                             f"{rx.dosage}, {rx.frequency}"
                         )
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to format prescription %s in encounter %s: %s",
+                            getattr(rx, "pk", "?"),
+                            getattr(enc, "pk", "?"),
+                            exc,
+                        )
 
                 # Lab results
                 for j, lab in enumerate(enc.lab_results.all(), 1):
@@ -187,10 +231,20 @@ def build_patient_context(patient, encounters, records, vitals, deidentify: bool
                             f"  [Lab Result {i}.{j}]: {lab.test_name} — "
                             f"{lab.result_value}{ref}{flag}"
                         )
-                    except Exception:
-                        pass
-            except Exception:
-                pass
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to format lab result %s in encounter %s: %s",
+                            getattr(lab, "pk", "?"),
+                            getattr(enc, "pk", "?"),
+                            exc,
+                        )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to format encounter %s for patient %s: %s",
+                    getattr(enc, "pk", "?"),
+                    getattr(patient, "universal_id", "?"),
+                    exc,
+                )
 
     return "\n".join(lines)
 
@@ -199,7 +253,7 @@ def build_patient_context(patient, encounters, records, vitals, deidentify: bool
 
 
 def _call_gemini(user_prompt: str, system_instruction: str = _SYSTEM_PROMPT_HEADER) -> str:
-    """Call Gemini 2.0 Flash via the google-generativeai SDK with system_instruction structural separation."""
+    """Call Gemini 2.5 Flash via the google-generativeai SDK with system_instruction structural separation."""
     try:
         import google.generativeai as genai
 
@@ -227,7 +281,7 @@ def _call_ollama(user_prompt: str, system_instruction: str = _SYSTEM_PROMPT_HEAD
     try:
         import requests
 
-        base_url = settings.OLLAMA_BASE_URL.rstrip('/')
+        base_url = settings.OLLAMA_BASE_URL.rstrip("/")
         url = f"{base_url}/api/chat"
         payload = {
             "model": settings.OLLAMA_MODEL,
@@ -270,13 +324,10 @@ def validate_citations(answer: str, context: str) -> str:
     """
     # Match bracketed text like [Encounter 1], [Diagnosis 1.2], etc.
     # Exclude emoji-bearing warnings like [⚠️ WARNING]
-    pattern = re.compile(r'\[([A-Za-z0-9\s\-\:\.\u2014]+)\]')
+    pattern = re.compile(r"\[([A-Za-z0-9\s\-\:\.\u2014]+)\]")
 
     # Build the set of valid citation labels that actually appear in context
-    valid_labels: set = {
-        m.group(1).strip()
-        for m in pattern.finditer(context)
-    }
+    valid_labels: set = {m.group(1).strip() for m in pattern.finditer(context)}
 
     def replace_citation(match: re.Match) -> str:
         full_citation = match.group(0)
@@ -307,21 +358,37 @@ def query_patient(patient, encounters, records, vitals, question: str) -> dict:
 
     provider = getattr(settings, "AI_PROVIDER", "ollama")
 
-    if provider == "gemini" and not getattr(settings, "GEMINI_API_KEY", ""):
-        raise RuntimeError(
-            "AI service is not configured. "
-            "Add GEMINI_API_KEY=<your_key> to your .env file to enable AI queries. "
-            "Get a free key at https://aistudio.google.com"
-        )
+    if provider == "gemini":
+        if not getattr(settings, "DEBUG", False) and not getattr(
+            settings, "ALLOW_EXTERNAL_AI_IN_PRODUCTION", False
+        ):
+            raise RuntimeError(
+                "The Gemini AI provider transmits Protected Health Information (PHI) to external Google "
+                "servers without a BAA/DPA and is restricted to development/testing environments (DEBUG=True). "
+                "Production deployments must use AI_PROVIDER=ollama for zero-egress local processing "
+                "under HIPAA and Ghana Data Protection Act 2012."
+            )
+        if not getattr(settings, "GEMINI_API_KEY", ""):
+            raise RuntimeError(
+                "AI service is not configured. "
+                "Add GEMINI_API_KEY=<your_key> to your .env file to enable AI queries. "
+                "Get a free key at https://aistudio.google.com"
+            )
 
-    # De-identify context if using external provider (e.g. gemini) to prevent PHI leak
-    deidentify = (provider != "ollama")
+    # In dev/test with external providers, mask direct identifiers (NHID, exact DOB, facility).
+    # NOTE: This does NOT constitute HIPAA or Ghana DPA 2012 de-identification because
+    # dates, vitals, diagnoses, and free-text clinical notes remain in the context payload.
+    mask_identifiers = provider != "ollama"
 
-    context = build_patient_context(patient, encounters, records, vitals, deidentify=deidentify)
+    context = build_patient_context(
+        patient, encounters, records, vitals, mask_identifiers=mask_identifiers
+    )
     user_prompt = _build_user_prompt(context, question)
 
     # Collect record references for audit logging
-    active_alerts = list(patient.alerts.filter(is_active=True)) if hasattr(patient, "alerts") else []
+    active_alerts = (
+        list(patient.alerts.filter(is_active=True)) if hasattr(patient, "alerts") else []
+    )
     retrieved_records = {
         "encounter_ids": [enc.id for enc in (encounters or [])],
         "vital_ids": [v.id for v in (vitals or [])],
@@ -336,13 +403,19 @@ def query_patient(patient, encounters, records, vitals, question: str) -> dict:
     except Exception as exc:
         # Check if local fallback is enabled when external provider fails
         if provider != "ollama" and getattr(settings, "AI_ENABLE_FALLBACK", False):
-            logger.warning("Primary provider (%s) failed (%s). Attempting local Ollama fallback...", provider, exc)
+            logger.warning(
+                "Primary provider (%s) failed (%s). Attempting local Ollama fallback...",
+                provider,
+                exc,
+            )
             try:
                 answer = _call_ollama(user_prompt, system_instruction=_SYSTEM_PROMPT_HEADER)
                 provider = "ollama (fallback)"
             except Exception as fallback_exc:
                 logger.exception("Fallback provider (ollama) also failed")
-                raise RuntimeError(f"{provider.capitalize()} API error: {exc}. Fallback also failed: {fallback_exc}") from exc
+                raise RuntimeError(
+                    f"{provider.capitalize()} API error: {exc}. Fallback also failed: {fallback_exc}"
+                ) from exc
         else:
             raise
 
@@ -356,4 +429,3 @@ def query_patient(patient, encounters, records, vitals, question: str) -> dict:
         "context_size": len(context),
         "retrieved_records": retrieved_records,
     }
-

@@ -21,13 +21,13 @@ def populate_search_tokens(apps, schema_editor):
 
 def rollback_search_tokens(apps, schema_editor):
     from patients.models import PatientSearchToken as ActivePatientSearchToken
+
     ActivePatientSearchToken.objects.all().delete()
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('patients', '0005_patientsearchtoken'),
+        ("patients", "0005_patientsearchtoken"),
     ]
 
     operations = [

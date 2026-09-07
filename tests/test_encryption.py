@@ -165,3 +165,36 @@ class TestBlindIndex:
         assert p.name_hash == expected_name_hash
         expected_nid_hash = make_blind_index("GHA-TEST-001")
         assert p.national_id_hash == expected_nid_hash
+
+    def test_blind_index_key_required_in_production(self):
+        import pytest
+        from django.core.exceptions import ImproperlyConfigured
+
+        from core.blind_index import _get_key
+
+        with override_settings(DEBUG=False, BLIND_INDEX_KEY=""):
+            with pytest.raises(ImproperlyConfigured, match="BLIND_INDEX_KEY must be set"):
+                _get_key()
+
+    def test_blind_index_key_cannot_equal_secret_key_in_production(self):
+        import pytest
+        from django.core.exceptions import ImproperlyConfigured
+
+        from core.blind_index import _get_key
+
+        with override_settings(
+            DEBUG=False, BLIND_INDEX_KEY="shared-secret", SECRET_KEY="shared-secret"
+        ):
+            with pytest.raises(ImproperlyConfigured, match="cryptographic key isolation"):
+                _get_key()
+
+    def test_blind_index_key_fallback_in_debug(self, caplog):
+        import logging
+
+        from core.blind_index import _get_key
+
+        with override_settings(DEBUG=True, BLIND_INDEX_KEY="", SECRET_KEY="dev-secret-key"):
+            with caplog.at_level(logging.WARNING):
+                key = _get_key()
+                assert key == b"dev-secret-key"
+                assert "BLIND_INDEX_KEY is unset or identical to SECRET_KEY" in caplog.text

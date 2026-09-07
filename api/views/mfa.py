@@ -111,8 +111,9 @@ class SendEmailOtpView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        from accounts.models import EmailOTP
         from django.core.mail import send_mail
+
+        from accounts.models import EmailOTP
 
         otp_code = EmailOTP.objects.generate_for(user)
 
@@ -131,13 +132,13 @@ class SendEmailOtpView(APIView):
             fail_silently=False,
         )
 
-        log_action(request, action="EMAIL_OTP_SENT", extra={"email": email, "via": "api"})
-
         parts = email.split("@")
         if len(parts) == 2 and len(parts[0]) > 2:
             masked = f"{parts[0][0]}***{parts[0][-1]}@{parts[1]}"
         else:
             masked = email
+
+        log_action(request, action="EMAIL_OTP_SENT", extra={"email": masked, "via": "api"})
 
         return Response(
             {
@@ -179,17 +180,14 @@ class MfaVerifyView(APIView):
             )
             return response
 
-        # 2. Try Email OTP
-        if EmailOTP.objects.verify_and_consume(request.user, code):
+        # 2. Try Email OTP (requires an enrolled TOTP device)
+        if confirmed_device and EmailOTP.objects.verify_and_consume(request.user, code):
             request.session["otp_verified"] = True
-            log_action(
-                request, action="MFA_VERIFIED", extra={"method": "email_otp", "via": "api"}
-            )
+            log_action(request, action="MFA_VERIFIED", extra={"method": "email_otp", "via": "api"})
             response = Response({"detail": "MFA verified via email OTP."})
-            if confirmed_device:
-                MFAEnforcementMiddleware.set_trusted_device_cookie(
-                    response, request.user, confirmed_device
-                )
+            MFAEnforcementMiddleware.set_trusted_device_cookie(
+                response, request.user, confirmed_device
+            )
             return response
 
         # 3. Try recovery code
@@ -281,6 +279,14 @@ class SignoutAllView(APIView):
     """
     POST /api/security/signout-all/
     Deletes all other DB sessions for the current user + bumps mfa_trust_version.
+
+    PERFORMANCE / ARCHITECTURAL LIMITATION:
+    Django's default database session backend (`django.contrib.sessions`) stores
+    opaque session data without an indexed `user_id` foreign key. Consequently,
+    finding a user's sessions requires an O(all unexpired sessions) table scan and
+    deserialization pass. This is acceptable for the prototype deployment, but in
+    high-scale environments should be replaced with a custom Session model containing
+    an indexed `user_id` column or a Redis session store. See known_limitations.md §6.
     """
 
     permission_classes = [IsAuthenticated]
@@ -295,7 +301,9 @@ class SignoutAllView(APIView):
         now = timezone.now()
 
         # Delete unexpired sessions belonging to current user except active key
-        active_sessions = Session.objects.filter(expire_date__gt=now).exclude(session_key=current_key)
+        active_sessions = Session.objects.filter(expire_date__gt=now).exclude(
+            session_key=current_key
+        )
         sessions_to_delete = []
         for session in active_sessions.iterator():
             try:

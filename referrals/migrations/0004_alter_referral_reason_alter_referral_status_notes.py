@@ -5,20 +5,23 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('referrals', '0003_remove_referral_referral_to_hospital_status_idx'),
+        ("referrals", "0003_remove_referral_referral_to_hospital_status_idx"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='referral',
-            name='reason',
-            field=core.fields.EncryptedTextField(verbose_name='Reason / clinical summary'),
+            model_name="referral",
+            name="reason",
+            field=core.fields.EncryptedTextField(verbose_name="Reason / clinical summary"),
         ),
         migrations.AlterField(
-            model_name='referral',
-            name='status_notes',
-            field=core.fields.EncryptedTextField(blank=True, help_text='Reason for rejection, acceptance notes, etc.', verbose_name='Status notes'),
+            model_name="referral",
+            name="status_notes",
+            field=core.fields.EncryptedTextField(
+                blank=True,
+                help_text="Reason for rejection, acceptance notes, etc.",
+                verbose_name="Status notes",
+            ),
         ),
     ]

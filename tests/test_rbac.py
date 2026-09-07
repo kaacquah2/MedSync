@@ -117,6 +117,7 @@ class TestEncounterDetailRBAC:
 class TestBreakGlassRBAC:
     def setup_method(self):
         from api.permissions import BreakGlassThrottle
+
         BreakGlassThrottle().cache.clear()
 
     def test_receptionist_cannot_break_glass(self, client_as_receptionist, patient_a):
@@ -145,6 +146,48 @@ class TestDocumentAccessRBAC:
         resp = client_as_doctor_a.get(f"/api/patients/{patient_a.universal_id}/documents/")
         assert resp.status_code == 200
 
+    def test_receptionist_cannot_delete_document(self, client_as_receptionist, patient_a, doctor_a):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from records.models import PatientDocument
+
+        doc = PatientDocument.objects.create(
+            patient=patient_a,
+            uploaded_by=doctor_a,
+            file=SimpleUploadedFile(
+                "scan.png", b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR", content_type="image/png"
+            ),
+            original_name="scan.png",
+            file_type="image/png",
+            file_size=16,
+        )
+        resp = client_as_receptionist.delete(
+            f"/api/patients/{patient_a.universal_id}/documents/{doc.pk}/"
+        )
+        assert resp.status_code == 403
+        assert PatientDocument.objects.filter(pk=doc.pk).exists()
+
+    def test_doctor_can_delete_document(self, client_as_doctor_a, patient_a, doctor_a):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from records.models import PatientDocument
+
+        doc = PatientDocument.objects.create(
+            patient=patient_a,
+            uploaded_by=doctor_a,
+            file=SimpleUploadedFile(
+                "scan.png", b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR", content_type="image/png"
+            ),
+            original_name="scan.png",
+            file_type="image/png",
+            file_size=16,
+        )
+        resp = client_as_doctor_a.delete(
+            f"/api/patients/{patient_a.universal_id}/documents/{doc.pk}/"
+        )
+        assert resp.status_code == 204
+        assert not PatientDocument.objects.filter(pk=doc.pk).exists()
+
 
 class TestSessionInvalidationAndLogout:
     def test_logout_invalidates_session_server_side(self, client_as_doctor_a, doctor_a):
@@ -155,4 +198,3 @@ class TestSessionInvalidationAndLogout:
         # Post-logout request to protected endpoint fails with 401
         me_resp = client_as_doctor_a.get("/api/me/")
         assert me_resp.status_code == 401
-

@@ -121,7 +121,10 @@ def _check_fhir_authorization(request, patient):
     Returns (True, None) if authorized, or (False, JsonResponse) if denied.
     """
     # 1. RBAC check: User must be clinical or admin-level
-    if not (getattr(request.user, "is_clinical", False) or getattr(request.user, "is_admin_level", False)):
+    if not (
+        getattr(request.user, "is_clinical", False)
+        or getattr(request.user, "is_admin_level", False)
+    ):
         log_action(
             request,
             action="ACCESS_DENIED",
@@ -130,7 +133,9 @@ def _check_fhir_authorization(request, patient):
             is_cross_hospital=False,
             extra={"fhir": True, "reason": "non_clinical_role"},
         )
-        return False, _fhir_error(403, "forbidden", "Role not authorized for clinical FHIR exports.")
+        return False, _fhir_error(
+            403, "forbidden", "Role not authorized for clinical FHIR exports."
+        )
 
     # 2. Inter-hospital access gate (same-hospital, break-glass, treatment relationship, consent, admin)
     decision = can_access_patient(request.user, patient)

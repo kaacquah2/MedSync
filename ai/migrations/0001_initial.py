@@ -8,33 +8,55 @@ import django.utils.timezone
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('patients', '0004_alter_patientalert_label_alter_patientalert_reaction'),
+        ("patients", "0004_alter_patientalert_label_alter_patientalert_reaction"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='AIQuery',
+            name="AIQuery",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(default=django.utils.timezone.now, editable=False)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('question', core.fields.EncryptedTextField(verbose_name='User Question')),
-                ('answer', core.fields.EncryptedTextField(verbose_name='AI Response')),
-                ('provider', models.CharField(max_length=20)),
-                ('model', models.CharField(max_length=50)),
-                ('context_size', models.PositiveIntegerField(default=0)),
-                ('patient', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='ai_queries', to='patients.patient')),
-                ('user', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='ai_queries', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                (
+                    "created_at",
+                    models.DateTimeField(default=django.utils.timezone.now, editable=False),
+                ),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("question", core.fields.EncryptedTextField(verbose_name="User Question")),
+                ("answer", core.fields.EncryptedTextField(verbose_name="AI Response")),
+                ("provider", models.CharField(max_length=20)),
+                ("model", models.CharField(max_length=50)),
+                ("context_size", models.PositiveIntegerField(default=0)),
+                (
+                    "patient",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="ai_queries",
+                        to="patients.patient",
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="ai_queries",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'AI Query Log',
-                'verbose_name_plural': 'AI Query Logs',
-                'ordering': ['-created_at'],
+                "verbose_name": "AI Query Log",
+                "verbose_name_plural": "AI Query Logs",
+                "ordering": ["-created_at"],
             },
         ),
     ]

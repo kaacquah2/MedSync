@@ -3,7 +3,7 @@
  *
  * Every unsafe request (POST/PUT/PATCH/DELETE) automatically includes the
  * X-CSRFToken header read from the Django csrftoken cookie, which DRF's
- * SessionAuthentication validates. Also attaches Bearer token if present.
+ * SessionAuthentication validates.
  *
  * Navigation on auth failure (401/403-MFA) is handled by dispatching a custom
  * 'auth:redirect' DOM event instead of window.location.href, keeping navigation
@@ -89,7 +89,7 @@ const api = axios.create({
   },
 });
 
-// CSRF interceptor
+// CSRF & Auth Token interceptor
 api.interceptors.request.use((config) => {
   // Attach X-CSRFToken header for unsafe HTTP methods
   const unsafe = ["post", "put", "patch", "delete"];
@@ -99,6 +99,15 @@ api.interceptors.request.use((config) => {
       config.headers["X-CSRFToken"] = csrfToken;
     }
   }
+
+  // Attach Authorization header when auth_token is present in localStorage
+  if (typeof localStorage !== "undefined") {
+    const authToken = localStorage.getItem("auth_token");
+    if (authToken) {
+      config.headers["Authorization"] = `Bearer ${authToken}`;
+    }
+  }
+
   return config;
 });
 

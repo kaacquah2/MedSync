@@ -150,7 +150,9 @@ def encounter_to_fhir(encounter) -> dict:
     }
 
     if encounter.created_at_hospital_id:
-        resource["serviceProvider"] = _ref("Organization", f"HOSP-{encounter.created_at_hospital_id}")
+        resource["serviceProvider"] = _ref(
+            "Organization", f"HOSP-{encounter.created_at_hospital_id}"
+        )
 
     if encounter.created_by_id:
         resource["participant"] = [

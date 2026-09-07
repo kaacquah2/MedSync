@@ -1,5 +1,7 @@
 """Root URL configuration for the EMR system."""
 
+import logging
+
 from django.contrib import admin
 from django.db import connection
 from django.http import JsonResponse
@@ -7,6 +9,8 @@ from django.urls import include, path, re_path
 from django.views.generic import RedirectView, TemplateView
 
 from core.error_views import handler_403, handler_404, handler_500
+
+logger = logging.getLogger(__name__)
 
 # ── Custom error handlers (activated in production / WSGI mode) ─────────────
 handler403 = handler_403
@@ -23,6 +27,7 @@ def healthz(request):
       - Fernet encryption round-trip (encrypt + decrypt with the primary key)
 
     Returns 200 OK when all checks pass, 503 when any check fails.
+    Fails closed and hides internal error strings from unauthenticated clients.
     """
     # ── Database ──────────────────────────────────────────────────────────────
     try:
@@ -47,14 +52,21 @@ def healthz(request):
         enc_error = str(exc)
 
     all_ok = db_ok and enc_ok
-    http_status = 200 if all_ok else 503
+    if not all_ok:
+        logger.error(
+            "healthz check failed: database=%s, encryption=%s",
+            db_error or "ok",
+            enc_error or "ok",
+        )
+        return JsonResponse({"status": "error"}, status=503)
+
     return JsonResponse(
         {
-            "status": "ok" if all_ok else "error",
-            "database": "connected" if db_ok else db_error,
-            "encryption": "ok" if enc_ok else enc_error,
+            "status": "ok",
+            "database": "connected",
+            "encryption": "ok",
         },
-        status=http_status,
+        status=200,
     )
 
 

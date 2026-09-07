@@ -45,7 +45,8 @@ export const fetchHealthz = () =>
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export const fetchMe = () => api.get<CurrentUser>("/me/");
-export const updateMe = (data: Partial<CurrentUser>) => api.patch<CurrentUser>("/me/", data);
+export const updateMe = (data: Partial<CurrentUser> & { current_password?: string; password?: string }) =>
+  api.patch<CurrentUser>("/me/", data);
 
 export const login = (username: string, password: string) =>
   api.post<CurrentUser>("/auth/login/", { username, password });

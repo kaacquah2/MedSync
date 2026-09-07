@@ -6,7 +6,7 @@ services:
       pip install -r requirements.txt
       cd frontend && npm ci && npm run build && cd ..
       python manage.py collectstatic --noinput
-      python manage.py migrate --noinput
+    preDeployCommand: python manage.py migrate --noinput
     startCommand: gunicorn emr.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --worker-class gthread --threads 4 --timeout 120
     healthCheckPath: /healthz/
     envVars:
@@ -25,10 +25,23 @@ services:
       - key: BLIND_INDEX_KEY
         sync: false
       - key: ALLOWED_HOSTS
-        value: ".onrender.com"
+        value: "med-emr.onrender.com"
       # Optional — set GEMINI_API_KEY to enable AI assistant (free at aistudio.google.com)
       - key: GEMINI_API_KEY
         sync: false
-      # Optional — add a Render Redis add-on and paste its URL here for shared caching
+      # Shared caching across gunicorn workers via Render Redis
       - key: REDIS_URL
-        sync: false
+        fromService:
+          type: redis
+          name: med-redis
+          property: connectionString
+      # Number of reverse proxy hops in front of the app (Render edge proxy = 1)
+      - key: TRUSTED_PROXY_COUNT
+        value: "1"
+
+  - type: redis
+    name: med-redis
+    ipAllowList: [] # internal access only
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+

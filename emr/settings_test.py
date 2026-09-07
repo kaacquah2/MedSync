@@ -5,7 +5,12 @@ Uses in-memory SQLite and a fixed encryption key so tests run without
 a Neon connection and without depending on .env.
 """
 
+import os
 from pathlib import Path
+
+import environ
+
+env = environ.Env()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -13,12 +18,18 @@ SECRET_KEY = "test-secret-key-do-not-use-in-production"
 DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": ":memory:",
+# Default to in-memory SQLite for fast, isolated test runs without external deps.
+# If DATABASE_URL is explicitly set (e.g. CI Postgres service or local test Postgres),
+# connect to it instead.
+if os.environ.get("DATABASE_URL"):
+    DATABASES = {"default": env.db("DATABASE_URL")}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": ":memory:",
+        }
     }
-}
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -139,6 +150,7 @@ GEMINI_API_KEY = ""
 GEMINI_MODEL = "gemini-2.0-flash"
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_MODEL = "llama3.1:8b"
+ALLOW_EXTERNAL_AI_IN_PRODUCTION = True
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -171,4 +183,6 @@ REST_FRAMEWORK = {
 }
 
 TESTING = True
-
+AUDIT_CHAIN_HMAC_KEY = None
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "test_media"

@@ -31,7 +31,7 @@ The "break-the-glass" pattern is the established healthcare answer: allow the ov
 
 - **Never silent**: every override is logged with actor, patient, reason, and expiry. There is no way to access a patient cross-hospital without generating an audit entry.
 - **Time-boxed**: a 1-hour grant means the clinician can complete their immediate clinical task, but ongoing care must establish a proper `TreatmentRelationship`.
-- **Re-MFA**: re-entering the TOTP code confirms the clinician is physically present at the device. This matches the sensitivity of the action (analogous to a pharmacist countersigning a controlled substance).
+- **Re-MFA**: re-entering the TOTP code confirms the clinician is physically present at the device. This control is conditional on device enrolment to avoid locking out emergency care; unenrolled clinicians receive access with `mfa_reverified=False`.
 - **Reason requirement**: ≥ 20 chars makes it impossible to type a trivially short justification; the reason is stored and audited, not discarded.
 
 ## Consequences

@@ -5,43 +5,73 @@ import records.validators
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('records', '0008_alter_laborder_clinical_notes_and_more'),
+        ("records", "0008_alter_laborder_clinical_notes_and_more"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='diagnosis',
-            name='icd_code',
-            field=models.CharField(blank=True, help_text='ICD-10-CM code, e.g. J18.9 (Pneumonia, unspecified).', max_length=20, validators=[records.validators.validate_icd10], verbose_name='ICD-10 code'),
+            model_name="diagnosis",
+            name="icd_code",
+            field=models.CharField(
+                blank=True,
+                help_text="ICD-10-CM code, e.g. J18.9 (Pneumonia, unspecified).",
+                max_length=20,
+                validators=[records.validators.validate_icd10],
+                verbose_name="ICD-10 code",
+            ),
         ),
         migrations.AlterField(
-            model_name='diagnosis',
-            name='snomed_code',
-            field=models.CharField(blank=True, help_text='Optional SNOMED CT concept ID for interoperability.', max_length=20, validators=[records.validators.validate_snomed], verbose_name='SNOMED CT code'),
+            model_name="diagnosis",
+            name="snomed_code",
+            field=models.CharField(
+                blank=True,
+                help_text="Optional SNOMED CT concept ID for interoperability.",
+                max_length=20,
+                validators=[records.validators.validate_snomed],
+                verbose_name="SNOMED CT code",
+            ),
         ),
         migrations.AlterField(
-            model_name='laborder',
-            name='loinc_code',
-            field=models.CharField(blank=True, max_length=20, validators=[records.validators.validate_loinc], verbose_name='LOINC code'),
+            model_name="laborder",
+            name="loinc_code",
+            field=models.CharField(
+                blank=True,
+                max_length=20,
+                validators=[records.validators.validate_loinc],
+                verbose_name="LOINC code",
+            ),
         ),
         migrations.AlterField(
-            model_name='labresult',
-            name='loinc_code',
-            field=models.CharField(blank=True, help_text='Optional LOINC code for structured lab interoperability, e.g. 2160-0 (Creatinine).', max_length=20, validators=[records.validators.validate_loinc], verbose_name='LOINC code'),
+            model_name="labresult",
+            name="loinc_code",
+            field=models.CharField(
+                blank=True,
+                help_text="Optional LOINC code for structured lab interoperability, e.g. 2160-0 (Creatinine).",
+                max_length=20,
+                validators=[records.validators.validate_loinc],
+                verbose_name="LOINC code",
+            ),
         ),
         migrations.AlterField(
-            model_name='prescription',
-            name='rxnorm_code',
-            field=models.CharField(blank=True, help_text='Optional RxNorm CUI for structured medication interoperability.', max_length=20, validators=[records.validators.validate_rxnorm], verbose_name='RxNorm code'),
+            model_name="prescription",
+            name="rxnorm_code",
+            field=models.CharField(
+                blank=True,
+                help_text="Optional RxNorm CUI for structured medication interoperability.",
+                max_length=20,
+                validators=[records.validators.validate_rxnorm],
+                verbose_name="RxNorm code",
+            ),
         ),
         migrations.AddIndex(
-            model_name='laborder',
-            index=models.Index(fields=['status', 'created_at'], name='laborder_status_created_idx'),
+            model_name="laborder",
+            index=models.Index(fields=["status", "created_at"], name="laborder_status_created_idx"),
         ),
         migrations.AddIndex(
-            model_name='medicationadministration',
-            index=models.Index(fields=['status', 'scheduled_time'], name='medadmin_status_scheduled_idx'),
+            model_name="medicationadministration",
+            index=models.Index(
+                fields=["status", "scheduled_time"], name="medadmin_status_scheduled_idx"
+            ),
         ),
     ]

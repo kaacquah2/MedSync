@@ -67,17 +67,25 @@ export interface Staff {
 
 export interface PatientSummary {
   universal_id: string;
+  full_name: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  date_of_birth?: string | null;
+  sex?: string | null;
+  blood_group?: string | null;
+  registered_at_hospital: HospitalMinimal | null;
+  created_at?: string | null;
+  has_access?: boolean;
+}
+
+export interface Patient extends Omit<PatientSummary, "full_name" | "first_name" | "last_name" | "date_of_birth" | "sex" | "blood_group" | "created_at"> {
   full_name: string;
   first_name: string;
   last_name: string;
   date_of_birth: string;
   sex: string;
   blood_group: string;
-  registered_at_hospital: HospitalMinimal | null;
   created_at: string;
-}
-
-export interface Patient extends PatientSummary {
   national_id?: string;
   phone?: string;
   email?: string;

@@ -194,12 +194,14 @@ class TestClinicalCodeValidationAndIdempotency:
         # Invalid RxNorm code rejected
         resp = client_as_doctor_a.post(
             f"/api/encounters/{encounter_a.pk}/prescriptions/",
-            json.dumps({
-                "drug_name": "Amoxicillin",
-                "dosage": "500mg",
-                "frequency": "TID",
-                "rxnorm_code": "INVALID",
-            }),
+            json.dumps(
+                {
+                    "drug_name": "Amoxicillin",
+                    "dosage": "500mg",
+                    "frequency": "TID",
+                    "rxnorm_code": "INVALID",
+                }
+            ),
             content_type="application/json",
         )
         assert resp.status_code == 400
@@ -207,12 +209,14 @@ class TestClinicalCodeValidationAndIdempotency:
         # Valid RxNorm code accepted
         resp_valid = client_as_doctor_a.post(
             f"/api/encounters/{encounter_a.pk}/prescriptions/",
-            json.dumps({
-                "drug_name": "Amoxicillin",
-                "dosage": "500mg",
-                "frequency": "TID",
-                "rxnorm_code": "723",
-            }),
+            json.dumps(
+                {
+                    "drug_name": "Amoxicillin",
+                    "dosage": "500mg",
+                    "frequency": "TID",
+                    "rxnorm_code": "723",
+                }
+            ),
             content_type="application/json",
         )
         assert resp_valid.status_code == 201
@@ -236,11 +240,13 @@ class TestClinicalCodeValidationAndIdempotency:
 
     def test_prescription_idempotency_protection(self, client_as_doctor_a, encounter_a):
         headers = {"HTTP_IDEMPOTENCY_KEY": "test-idem-rx-1001"}
-        payload = json.dumps({
-            "drug_name": "Paracetamol",
-            "dosage": "500mg",
-            "frequency": "QDS",
-        })
+        payload = json.dumps(
+            {
+                "drug_name": "Paracetamol",
+                "dosage": "500mg",
+                "frequency": "QDS",
+            }
+        )
 
         # First submit
         r1 = client_as_doctor_a.post(
@@ -288,7 +294,110 @@ class TestClinicalCodeValidationAndIdempotency:
         assert r2.json() == r1.json()
 
         from records.models import LabOrder
+
         assert LabOrder.objects.filter(patient=patient_a, test_name="Urinalysis").count() == 1
+
+    def test_prescription_idempotency_different_body_creates_distinct_records(
+        self, client_as_doctor_a, encounter_a
+    ):
+        # Same idempotency key used with DIFFERENT payloads
+        headers = {"HTTP_IDEMPOTENCY_KEY": "test-idem-rx-diff-body"}
+        p1 = json.dumps({"drug_name": "Paracetamol", "dosage": "500mg", "frequency": "QDS"})
+        p2 = json.dumps({"drug_name": "Ibuprofen", "dosage": "400mg", "frequency": "TID"})
+
+        r1 = client_as_doctor_a.post(
+            f"/api/encounters/{encounter_a.pk}/prescriptions/",
+            p1,
+            content_type="application/json",
+            **headers,
+        )
+        assert r1.status_code == 201
+        assert r1.json()["drug_name"] == "Paracetamol"
+
+        # Second request with same key but different body must NOT replay first response
+        r2 = client_as_doctor_a.post(
+            f"/api/encounters/{encounter_a.pk}/prescriptions/",
+            p2,
+            content_type="application/json",
+            **headers,
+        )
+        assert r2.status_code == 201
+        assert r2.json()["drug_name"] == "Ibuprofen"
+
+        # Verify BOTH prescriptions were created in DB
+        rxs = Prescription.objects.filter(encounter=encounter_a)
+        assert rxs.count() == 2
+        drug_names = {rx.drug_name for rx in rxs}
+        assert drug_names == {"Paracetamol", "Ibuprofen"}
+
+    def test_prescription_idempotency_in_flight_returns_409(
+        self, client_as_doctor_a, encounter_a, doctor_a
+    ):
+        from django.core.cache import cache
+
+        from api.idempotency import get_idempotency_key
+
+        headers = {"HTTP_IDEMPOTENCY_KEY": "test-idem-rx-inflight"}
+        payload = json.dumps({"drug_name": "Metformin", "dosage": "500mg", "frequency": "BD"})
+
+        from rest_framework.test import APIRequestFactory
+
+        factory = APIRequestFactory()
+        req = factory.post(
+            f"/api/encounters/{encounter_a.pk}/prescriptions/",
+            data={"drug_name": "Metformin", "dosage": "500mg", "frequency": "BD"},
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="test-idem-rx-inflight",
+        )
+        req.user = doctor_a
+        cache_key = get_idempotency_key(req, scope="create_prescription")
+        cache.set(cache_key, "in-flight", timeout=60)
+
+        # Now attempting to post should receive 409 Conflict
+        r = client_as_doctor_a.post(
+            f"/api/encounters/{encounter_a.pk}/prescriptions/",
+            payload,
+            content_type="application/json",
+            **headers,
+        )
+        assert r.status_code == 409
+        assert "in progress" in r.json()["detail"]
+
+        # Ensure no prescription was created
+        rxs = [rx.drug_name for rx in Prescription.objects.filter(encounter=encounter_a)]
+        assert "Metformin" not in rxs
+
+        # Release reservation
+        cache.delete(cache_key)
+
+    def test_prescription_idempotency_key_ordering_insensitivity(
+        self, client_as_doctor_a, encounter_a
+    ):
+        headers = {"HTTP_IDEMPOTENCY_KEY": "test-idem-rx-key-order"}
+        # Different key orders in json
+        p1 = '{"dosage":"250mg","drug_name":"Cefalexin","frequency":"TID"}'
+        p2 = '{"drug_name":"Cefalexin","frequency":"TID","dosage":"250mg"}'
+
+        r1 = client_as_doctor_a.post(
+            f"/api/encounters/{encounter_a.pk}/prescriptions/",
+            p1,
+            content_type="application/json",
+            **headers,
+        )
+        assert r1.status_code == 201
+
+        r2 = client_as_doctor_a.post(
+            f"/api/encounters/{encounter_a.pk}/prescriptions/",
+            p2,
+            content_type="application/json",
+            **headers,
+        )
+        assert r2.status_code == 201
+        assert r2.json() == r1.json()
+
+        # Only one prescription created
+        rxs = [rx.drug_name for rx in Prescription.objects.filter(encounter=encounter_a)]
+        assert rxs.count("Cefalexin") == 1
 
     def test_list_pagination_schema(self, client_as_doctor_a, patient_a):
         resp = client_as_doctor_a.get(f"/api/patients/{patient_a.universal_id}/encounters/")
@@ -296,4 +405,3 @@ class TestClinicalCodeValidationAndIdempotency:
         data = resp.json()
         assert "count" in data
         assert "results" in data
-

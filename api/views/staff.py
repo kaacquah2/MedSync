@@ -29,7 +29,10 @@ class StaffListCreateView(APIView):
         qs = User.objects.select_related("hospital").order_by("last_name", "first_name")
 
         if request.user.role == "hospital_admin":
-            qs = qs.filter(hospital=request.user.hospital)
+            if not request.user.hospital_id:
+                qs = qs.none()
+            else:
+                qs = qs.filter(hospital=request.user.hospital)
 
         # Optional filters
         role = request.GET.get("role")
@@ -41,10 +44,13 @@ class StaffListCreateView(APIView):
             qs = qs.filter(role=role)
         if is_active is not None:
             qs = qs.filter(is_active=(is_active.lower() == "true"))
-        if hospital_id and (request.user.role == "super_admin" or getattr(request.user, "is_superuser", False)):
+        if hospital_id and (
+            request.user.role == "super_admin" or getattr(request.user, "is_superuser", False)
+        ):
             qs = qs.filter(hospital_id=hospital_id)
         if q:
             from django.db.models import Q
+
             qs = qs.filter(
                 Q(username__icontains=q)
                 | Q(first_name__icontains=q)
@@ -94,8 +100,10 @@ class StaffListCreateView(APIView):
             )
         try:
             from accounts.models import User
+
             user_attrs = {
-                k: v for k, v in serializer.validated_data.items()
+                k: v
+                for k, v in serializer.validated_data.items()
                 if k not in ("hospital_id", "hospital", "password")
             }
             if serializer.validated_data.get("hospital"):
@@ -108,7 +116,18 @@ class StaffListCreateView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        user = serializer.save()
+        user = serializer.save(password=password)
+
+        log_action(
+            request,
+            action="STAFF_CREATED",
+            target=user,
+            extra={
+                "target_user": user.username,
+                "role": user.role,
+                "hospital": str(user.hospital) if user.hospital else None,
+            },
+        )
 
         return Response(
             StaffSerializer(user, context={"request": request}).data,
@@ -126,8 +145,9 @@ class StaffDetailView(APIView):
 
     def _get_or_403(self, request, pk):
         user = get_object_or_404(User.objects.select_related("hospital"), pk=pk)
-        if request.user.role == "hospital_admin" and user.hospital != request.user.hospital:
-            return None
+        if request.user.role == "hospital_admin":
+            if not request.user.hospital_id or user.hospital_id != request.user.hospital_id:
+                return None
         return user
 
     def get(self, request, pk):
@@ -151,11 +171,31 @@ class StaffDetailView(APIView):
             data.pop("hospital_id", None)
             data.pop("hospital", None)
 
-        serializer = StaffSerializer(
-            user, data=data, partial=True, context={"request": request}
-        )
+        old_role = user.role
+        old_hospital = str(user.hospital) if user.hospital else None
+
+        serializer = StaffSerializer(user, data=data, partial=True, context={"request": request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
+
+        changes = {}
+        if old_role != user.role:
+            changes["role"] = {"old": old_role, "new": user.role}
+        new_hospital = str(user.hospital) if user.hospital else None
+        if old_hospital != new_hospital:
+            changes["hospital"] = {"old": old_hospital, "new": new_hospital}
+
+        log_action(
+            request,
+            action="STAFF_UPDATED",
+            target=user,
+            extra={
+                "target_user": user.username,
+                "changes": changes,
+                "updated_fields": list(serializer.validated_data.keys()),
+            },
+        )
+
         return Response(StaffSerializer(user, context={"request": request}).data)
 
 
@@ -167,8 +207,9 @@ class StaffSetActiveView(APIView):
     def post(self, request, pk):
         user = get_object_or_404(User.objects.select_related("hospital"), pk=pk)
 
-        if request.user.role == "hospital_admin" and user.hospital != request.user.hospital:
-            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        if request.user.role == "hospital_admin":
+            if not request.user.hospital_id or user.hospital_id != request.user.hospital_id:
+                return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
 
         # Can't deactivate yourself
         if user.pk == request.user.pk:
@@ -215,8 +256,9 @@ class StaffResetPasswordView(APIView):
         target = get_object_or_404(User.objects.select_related("hospital"), pk=pk)
 
         # hospital_admin may only reset passwords for staff at their own hospital
-        if request.user.role == "hospital_admin" and target.hospital != request.user.hospital:
-            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        if request.user.role == "hospital_admin":
+            if not request.user.hospital_id or target.hospital_id != request.user.hospital_id:
+                return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
 
         # Prevent resetting your own password via this admin endpoint
         # (use /api/auth/password/change/ instead)

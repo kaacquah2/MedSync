@@ -62,11 +62,12 @@ export function ProfilePage() {
 
   const profileForm = useForm({
     initialValues: {
-      first_name: user?.first_name ?? "",
-      last_name:  user?.last_name  ?? "",
-      email:      user?.email      ?? "",
-      phone:      user?.phone      ?? "",
-      bio:        user?.bio        ?? "",
+      first_name:       user?.first_name ?? "",
+      last_name:        user?.last_name  ?? "",
+      email:            user?.email      ?? "",
+      phone:            user?.phone      ?? "",
+      bio:              user?.bio        ?? "",
+      current_password: "",
     },
   });
 
@@ -82,9 +83,11 @@ export function ProfilePage() {
     try {
       await updateMe(values);
       await refresh();
+      profileForm.setFieldValue("current_password", "");
       notifications.show({ color: "green", icon: <IconCheck />, message: "Profile updated." });
-    } catch {
-      notifications.show({ color: "red", message: "Failed to update profile." });
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      notifications.show({ color: "red", message: e?.response?.data?.error || "Failed to update profile." });
     }
   }
 
@@ -177,6 +180,14 @@ export function ProfilePage() {
                 <TextInput label="Last Name"  {...profileForm.getInputProps("last_name")} />
               </Group>
               <TextInput label="Email"  {...profileForm.getInputProps("email")} />
+              {profileForm.values.email.trim().toLowerCase() !== (user?.email ?? "").trim().toLowerCase() && (
+                <PasswordInput
+                  label="Current Password"
+                  description="Required to confirm email address change"
+                  required
+                  {...profileForm.getInputProps("current_password")}
+                />
+              )}
               <TextInput label="Phone"  {...profileForm.getInputProps("phone")} />
               <Textarea  label="Bio"    rows={2} {...profileForm.getInputProps("bio")} />
               <Button type="submit" mt="xs" leftSection={<IconUser size={16} />}>Save Profile</Button>

@@ -1,5 +1,7 @@
 import pytest
+
 from patients.models import Patient, PatientSearchToken
+
 
 @pytest.mark.django_db
 class TestSearchTrigram:
@@ -34,10 +36,32 @@ class TestSearchTrigram:
         assert len(results) == 2
         names = {r["first_name"] for r in results}
         assert names == {"Yaw", "Kofi"}
-        
+
         # Search for "kof" (partial first name)
         resp = client_as_doctor_a.get("/api/patients/?q=kof")
         assert resp.status_code == 200
         results = resp.json()["results"]
         assert len(results) == 1
         assert results[0]["first_name"] == "Kofi"
+
+    def test_search_token_failure_logged_and_raised(self, monkeypatch, caplog):
+        import logging
+
+        from django.db import DatabaseError
+
+        p = Patient(
+            first_name="Kwabena",
+            last_name="Boateng",
+            date_of_birth="1985-05-05",
+        )
+
+        def mock_bulk_create(*args, **kwargs):
+            raise DatabaseError("Simulated DB failure during search token creation")
+
+        monkeypatch.setattr(PatientSearchToken.objects, "bulk_create", mock_bulk_create)
+
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(DatabaseError, match="Simulated DB failure"):
+                p.save()
+
+        assert "Failed to synchronize PatientSearchTokens for patient" in caplog.text

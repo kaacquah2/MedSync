@@ -54,12 +54,13 @@ class Command(BaseCommand):
                 self.stdout.write("Pruning cancelled.")
                 return
 
-        from django.db import connection
-
         import hashlib
         import json
         import os
+
         from django.conf import settings
+        from django.db import connection
+
         from audit.models import AuditLogArchiveAnchor
 
         with rls_bypass():
@@ -85,23 +86,25 @@ class Command(BaseCommand):
 
             data_list = []
             for entry in targets:
-                data_list.append({
-                    "pk": entry.pk,
-                    "actor_username": entry.actor_username,
-                    "actor_role": entry.actor_role,
-                    "actor_hospital": entry.actor_hospital,
-                    "action": entry.action,
-                    "timestamp": entry.timestamp.isoformat() if entry.timestamp else "",
-                    "target_type": entry.target_type,
-                    "target_id": entry.target_id,
-                    "patient_nhid": entry.patient_nhid,
-                    "is_cross_hospital": entry.is_cross_hospital,
-                    "ip_address": entry.ip_address,
-                    "user_agent": entry.user_agent,
-                    "extra": entry.extra,
-                    "prev_hash": entry.prev_hash,
-                    "row_hash": entry.row_hash,
-                })
+                data_list.append(
+                    {
+                        "pk": entry.pk,
+                        "actor_username": entry.actor_username,
+                        "actor_role": entry.actor_role,
+                        "actor_hospital": entry.actor_hospital,
+                        "action": entry.action,
+                        "timestamp": entry.timestamp.isoformat() if entry.timestamp else "",
+                        "target_type": entry.target_type,
+                        "target_id": entry.target_id,
+                        "patient_nhid": entry.patient_nhid,
+                        "is_cross_hospital": entry.is_cross_hospital,
+                        "ip_address": entry.ip_address,
+                        "user_agent": entry.user_agent,
+                        "extra": entry.extra,
+                        "prev_hash": entry.prev_hash,
+                        "row_hash": entry.row_hash,
+                    }
+                )
 
             json_content = json.dumps(data_list, indent=2, sort_keys=True)
             with open(file_path, "w", encoding="utf-8") as f:
@@ -111,17 +114,22 @@ class Command(BaseCommand):
 
             with transaction.atomic():
                 # Save the validation anchor
-                AuditLogArchiveAnchor.objects.create(
+                anchor = AuditLogArchiveAnchor.objects.create(
                     archive_filename=filename,
                     last_row_pk=last_pk,
                     last_row_hash=last_hash,
                     archive_file_hash=file_hash,
                 )
+                from audit.anchors import append_anchor_to_ledger
+
+                append_anchor_to_ledger(anchor)
 
                 # Delete the database entries
                 with connection.cursor() as cursor:
                     if connection.vendor == "postgresql":
-                        cursor.execute("ALTER TABLE audit_auditlog DISABLE TRIGGER trg_audit_log_immutable")
+                        cursor.execute(
+                            "ALTER TABLE audit_auditlog DISABLE TRIGGER trg_audit_log_immutable"
+                        )
                     elif connection.vendor == "sqlite":
                         cursor.execute("DROP TRIGGER IF EXISTS trg_audit_log_immutable_delete")
 
@@ -129,7 +137,9 @@ class Command(BaseCommand):
                     deleted = cursor.rowcount
 
                     if connection.vendor == "postgresql":
-                        cursor.execute("ALTER TABLE audit_auditlog ENABLE TRIGGER trg_audit_log_immutable")
+                        cursor.execute(
+                            "ALTER TABLE audit_auditlog ENABLE TRIGGER trg_audit_log_immutable"
+                        )
                     elif connection.vendor == "sqlite":
                         cursor.execute(
                             "CREATE TRIGGER IF NOT EXISTS trg_audit_log_immutable_delete "
@@ -144,4 +154,3 @@ class Command(BaseCommand):
                 "Chain Continuity Preserved: Verification will anchor to this archive's final row hash."
             )
         )
-

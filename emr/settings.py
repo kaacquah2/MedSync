@@ -29,6 +29,7 @@ env = environ.Env(
     REDIS_URL=(str, ""),  # e.g. redis://localhost:6379/0
     # AI assistant settings (Phase E)
     AI_PROVIDER=(str, "ollama"),  # "gemini" | "ollama"
+    ALLOW_EXTERNAL_AI_IN_PRODUCTION=(bool, False),
     GEMINI_API_KEY=(str, ""),
     GEMINI_MODEL=(str, "gemini-2.5-flash"),
     OLLAMA_BASE_URL=(str, "http://localhost:11434"),
@@ -183,11 +184,13 @@ if REDIS_URL:
 else:
     if not DEBUG:
         import warnings
+
         warnings.warn(
             "REDIS_URL is not set in production (DEBUG=False). "
             "Rate limiting and caching will fall back to per-process LocMemCache, "
             "which is ineffective across multiple Gunicorn workers.",
             RuntimeWarning,
+            stacklevel=2,
         )
     CACHES = {
         "default": {
@@ -315,6 +318,12 @@ FIELD_ENCRYPTION_KEY = env("FIELD_ENCRYPTION_KEY")
 BLIND_INDEX_KEY = env("BLIND_INDEX_KEY", default="")
 
 # ---------------------------------------------------------------------------
+# Audit chain HMAC key (optional HSM/KMS key for keyed tamper evidence)
+# When set, row hashes are computed using HMAC-SHA256 instead of plain SHA256.
+# ---------------------------------------------------------------------------
+AUDIT_CHAIN_HMAC_KEY = env("AUDIT_CHAIN_HMAC_KEY", default=None)
+
+# ---------------------------------------------------------------------------
 # Reverse-proxy trust
 # Set TRUSTED_PROXY_COUNT to the number of trusted load-balancer / nginx hops
 # in front of this application.  Used by audit/utils.py to select the correct
@@ -351,11 +360,13 @@ FHIR_BASE_URL = env("FHIR_BASE_URL", default="https://emr.example.com/fhir")
 
 # ---------------------------------------------------------------------------
 # AI assistant (Phase E)
-# AI_PROVIDER = "gemini" (default, free tier) | "ollama" (local, no PHI leaves server)
-# Set GEMINI_API_KEY in .env to enable the Gemini provider.
-# For OLLAMA: run Ollama locally and set OLLAMA_BASE_URL / OLLAMA_MODEL.
+# AI_PROVIDER = "ollama" (production default, zero PHI egress) | "gemini" (dev/test only, DEBUG=True)
+# In production, AI_PROVIDER=ollama is required for compliance (HIPAA, Ghana DPA 2012).
+# Gemini transmits PHI to external Google servers and is blocked when DEBUG=False
+# unless explicitly overridden with ALLOW_EXTERNAL_AI_IN_PRODUCTION=True.
 # ---------------------------------------------------------------------------
 AI_PROVIDER = env("AI_PROVIDER")
+ALLOW_EXTERNAL_AI_IN_PRODUCTION = env("ALLOW_EXTERNAL_AI_IN_PRODUCTION")
 GEMINI_API_KEY = env("GEMINI_API_KEY")
 GEMINI_MODEL = env("GEMINI_MODEL")
 OLLAMA_BASE_URL = env("OLLAMA_BASE_URL")
@@ -374,6 +385,7 @@ AXES_HTTP_RESPONSE_CODE = 403
 # Security headers (activated when DEBUG=False)
 # ---------------------------------------------------------------------------
 if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True

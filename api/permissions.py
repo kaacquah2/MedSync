@@ -5,7 +5,10 @@ These are used on every API view so the API enforces the same RBAC rules.
 """
 
 from rest_framework.permissions import BasePermission
-from rest_framework.throttling import ScopedRateThrottle  # noqa: F401 — re-exported for views
+from rest_framework.throttling import (  # noqa: F401 — re-exported for views
+    ScopedRateThrottle,
+    UserRateThrottle,
+)
 
 
 def _has_role(user, *roles):
@@ -224,15 +227,13 @@ class CanResolveAlerts(BasePermission):
         return request.user.is_authenticated and _has_role(request.user, "doctor", "nurse")
 
 
-from rest_framework.throttling import ScopedRateThrottle, UserRateThrottle  # noqa: F401 — re-exported for views
-
-
 class BreakGlassThrottle(UserRateThrottle):
     """
     Rate-limits break-glass requests to 5 per hour per user.
     Prevents a compromised or abusive account from issuing unlimited
     emergency access grants across patients.
     """
+
     rate = "5/hour"
 
 
@@ -279,5 +280,3 @@ def has_hospital_access(user, targets) -> bool:
             return True
 
     return False
-
-

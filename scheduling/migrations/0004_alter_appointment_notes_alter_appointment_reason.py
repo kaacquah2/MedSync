@@ -5,20 +5,19 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('scheduling', '0003_remove_appointment_appointment_duration_positive_and_more'),
+        ("scheduling", "0003_remove_appointment_appointment_duration_positive_and_more"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='appointment',
-            name='notes',
-            field=core.fields.EncryptedTextField(blank=True, verbose_name='Administrative notes'),
+            model_name="appointment",
+            name="notes",
+            field=core.fields.EncryptedTextField(blank=True, verbose_name="Administrative notes"),
         ),
         migrations.AlterField(
-            model_name='appointment',
-            name='reason',
-            field=core.fields.EncryptedTextField(blank=True, verbose_name='Reason for visit'),
+            model_name="appointment",
+            name="reason",
+            field=core.fields.EncryptedTextField(blank=True, verbose_name="Reason for visit"),
         ),
     ]

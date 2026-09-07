@@ -5,38 +5,69 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('records', '0009_alter_diagnosis_icd_code_alter_diagnosis_snomed_code_and_more'),
+        ("records", "0009_alter_diagnosis_icd_code_alter_diagnosis_snomed_code_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='encounter',
-            name='status',
-            field=models.CharField(choices=[('open', 'Open'), ('in_progress', 'In Progress'), ('completed', 'Completed'), ('signed_off', 'Signed Off')], db_index=True, default='open', help_text='Lifecycle state of the encounter. Open → In Progress → Completed → Signed Off.', max_length=15),
+            model_name="encounter",
+            name="status",
+            field=models.CharField(
+                choices=[
+                    ("open", "Open"),
+                    ("in_progress", "In Progress"),
+                    ("completed", "Completed"),
+                    ("signed_off", "Signed Off"),
+                ],
+                db_index=True,
+                default="open",
+                help_text="Lifecycle state of the encounter. Open → In Progress → Completed → Signed Off.",
+                max_length=15,
+            ),
         ),
         migrations.AddField(
-            model_name='prescription',
-            name='discontinued_reason',
-            field=core.fields.EncryptedTextField(blank=True, help_text='Required when status is set to discontinued.', verbose_name='Discontinuation reason'),
+            model_name="prescription",
+            name="discontinued_reason",
+            field=core.fields.EncryptedTextField(
+                blank=True,
+                help_text="Required when status is set to discontinued.",
+                verbose_name="Discontinuation reason",
+            ),
         ),
         migrations.AddField(
-            model_name='prescription',
-            name='status',
-            field=models.CharField(choices=[('active', 'Active'), ('completed', 'Completed'), ('discontinued', 'Discontinued')], db_index=True, default='active', help_text='Lifecycle state: active, completed, or discontinued.', max_length=15),
+            model_name="prescription",
+            name="status",
+            field=models.CharField(
+                choices=[
+                    ("active", "Active"),
+                    ("completed", "Completed"),
+                    ("discontinued", "Discontinued"),
+                ],
+                db_index=True,
+                default="active",
+                help_text="Lifecycle state: active, completed, or discontinued.",
+                max_length=15,
+            ),
         ),
         migrations.AddField(
-            model_name='prescription',
-            name='valid_until',
-            field=models.DateField(blank=True, help_text='Optional expiry date after which this prescription should not be filled.', null=True, verbose_name='Valid until (date)'),
+            model_name="prescription",
+            name="valid_until",
+            field=models.DateField(
+                blank=True,
+                help_text="Optional expiry date after which this prescription should not be filled.",
+                null=True,
+                verbose_name="Valid until (date)",
+            ),
         ),
         migrations.AddIndex(
-            model_name='encounter',
-            index=models.Index(fields=['status', 'created_at'], name='encounter_status_created_idx'),
+            model_name="encounter",
+            index=models.Index(
+                fields=["status", "created_at"], name="encounter_status_created_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='prescription',
-            index=models.Index(fields=['status', 'created_at'], name='rx_status_created_idx'),
+            model_name="prescription",
+            index=models.Index(fields=["status", "created_at"], name="rx_status_created_idx"),
         ),
     ]

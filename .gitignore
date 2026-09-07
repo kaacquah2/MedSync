@@ -21,7 +21,13 @@ env/
 # Django
 staticfiles/
 media/
+patient_documents/
+audit_archives/
 db.sqlite3
+dev.db
+*.db
+*.sqlite
+*.sqlite3
 
 # Node / Frontend
 frontend/node_modules/
@@ -45,6 +51,10 @@ Thumbs.db
 *.swp
 *.swo
 
-# Logs
+# Logs and artifacts
 *.log
+*lint*.txt
+lint_output.txt
+lint_warnings*.txt
 .env
+

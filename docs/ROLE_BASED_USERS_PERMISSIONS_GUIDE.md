@@ -214,10 +214,10 @@ Legend: ✓ = read access · (W) = write/interactive · (R) = read-only
 | Receptionist     | ✗            | N/A                   | N/A          |
 
 ### AI Provider Options
-| Provider | Free | PHI Egress | Setup |
-|----------|------|------------|-------|
-| Gemini 2.0 Flash (default) | ✓ (1,500 req/day) | Yes (to Google) | `GEMINI_API_KEY=...` in `.env` |
-| Local Ollama (`llama3.1:8b`) | ✓ (compute only) | **No** — fully local | `AI_PROVIDER=ollama` + Ollama installed |
+| Provider | Free | PHI Egress | Setup & Compliance |
+|----------|------|------------|---------------------|
+| Local Ollama (`llama3.1:8b`) (Production Default) | ✓ (compute only) | **No** — fully local | `AI_PROVIDER=ollama` + Ollama installed (HIPAA & Ghana DPA compliant) |
+| Gemini 2.5 Flash (Dev/Test Only) | ✓ (1,500 req/day) | Yes (to Google) | `GEMINI_API_KEY=...` in `.env` (Blocked in production / `DEBUG=False`) |
 
 ---
 
