@@ -80,8 +80,8 @@
 | **Availability** | 99.5% monthly uptime (single-instance prototype target) | Production HA target: 99.9% with primary/read-replica failover (see ADR-01). |
 | **Concurrency** | Support 50 concurrent authenticated clinician sessions without p95 degradation | Sized for a 3-hospital pilot (approx. 50 active clinical users). |
 | **RTO** | Recovery Time Objective: < 4 hours for full service restore from backup | From documented restore procedure. |
-| **RPO** | Recovery Point Objective: < 1 hour data loss | Daily automated encrypted backups + WAL archiving in production. |
-| **Audit retention** | 10 years (aligned to Ghana Health Service medical-record retention policy) | Legal and clinical requirement. |
+| **RPO** | Recovery Point Objective: < 1 hour data loss (production target via managed PostgreSQL WAL archiving; prototype provides manual backup scripts in `scripts/backup.sh` and `python manage.py export_backup`) | Neon/cloud WAL point-in-time recovery in production; manual DB + media export provided for prototype deployment and testing. |
+| **Audit retention** | 30-day hot-database retention with local WORM JSON archival (`prune_audit_logs`); 10-year statutory retention planned via cloud WORM storage | Balances local storage constraints with hash-chain continuity via archive anchors (ADR-005); long-term statutory compliance requires external cold storage (see `known_limitations.md §3`). |
 | **Encryption** | AES-128-CBC (Fernet) with HMAC-SHA256 for field-level PII/PHI; TLS 1.3 in transit; AES-256 for disk/backup encryption at rest | Industry standard for PHI. |
 | **Lockout** | Account locked after 5 failed login attempts; 1-hour cooldown | Mitigates credential-stuffing attacks. |
 | **Session timeout** | 1-hour idle session expiry; auto-lock on inactivity | Clinical workstations are frequently unattended. |

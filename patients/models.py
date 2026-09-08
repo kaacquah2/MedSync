@@ -22,7 +22,7 @@ import uuid
 from datetime import date, datetime
 
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import IntegrityError, models, transaction
 
 from core.blind_index import make_blind_index
 from core.fields import EncryptedCharField, EncryptedTextField
@@ -50,8 +50,8 @@ def validate_date_of_birth(value: str):
 
 
 def generate_nhid():
-    """Generate a unique 8-character hex National Health ID."""
-    return f"NHID-{uuid.uuid4().hex[:8].upper()}"
+    """Generate a unique 16-character hex National Health ID (64 bits of entropy)."""
+    return f"NHID-{uuid.uuid4().hex[:16].upper()}"
 
 
 class Patient(TimeStampedModel):
@@ -75,7 +75,7 @@ class Patient(TimeStampedModel):
 
     # ── Universal identifier ──────────────────────────────────────────────
     universal_id = models.CharField(
-        max_length=20,
+        max_length=32,
         unique=True,
         default=generate_nhid,
         editable=False,
@@ -191,7 +191,42 @@ class Patient(TimeStampedModel):
             )
             self.national_id_hash = ""
 
-        super().save(*args, **kwargs)
+        is_new = self._state.adding or self.pk is None
+        if is_new:
+            max_retries = 10
+            for attempt in range(max_retries):
+                if not self.universal_id:
+                    self.universal_id = generate_nhid()
+                try:
+                    with transaction.atomic():
+                        super().save(*args, **kwargs)
+                    break
+                except IntegrityError as exc:
+                    self.pk = None
+                    self._state.adding = True
+                    if attempt == max_retries - 1:
+                        logger.error(
+                            "Failed to generate unique NHID after %d attempts for patient.",
+                            max_retries,
+                        )
+                        raise
+                    err_msg = str(exc).lower()
+                    if (
+                        "universal_id" in err_msg
+                        or "unique" in err_msg
+                        or Patient.objects.filter(universal_id=self.universal_id).exists()
+                    ):
+                        logger.warning(
+                            "Collision detected on NHID %s (attempt %d/%d). Regenerating NHID and retrying...",
+                            self.universal_id,
+                            attempt + 1,
+                            max_retries,
+                        )
+                        self.universal_id = generate_nhid()
+                    else:
+                        raise
+        else:
+            super().save(*args, **kwargs)
 
         try:
             tokens = generate_name_trigrams(self.first_name, self.last_name)
@@ -222,6 +257,16 @@ class Patient(TimeStampedModel):
 
     def get_full_name(self):
         return f"{self.first_name} {self.last_name}"
+
+    @property
+    def nhid(self) -> str:
+        """Alias for universal_id (National Health ID)."""
+        return self.universal_id
+
+    @property
+    def patient_nhid(self) -> str:
+        """Alias for universal_id (National Health ID)."""
+        return self.universal_id
 
 
 class PatientAlert(TimeStampedModel):

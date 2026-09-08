@@ -67,6 +67,7 @@ export interface Staff {
 
 export interface PatientSummary {
   universal_id: string;
+  nhid?: string;
   full_name: string | null;
   first_name?: string | null;
   last_name?: string | null;
@@ -115,12 +116,16 @@ export interface PatientAlert {
   created_at: string;
 }
 
+export type ConfidentialityLevel = "normal" | "restricted" | "very_restricted";
+
 export interface Diagnosis {
   id: number;
   icd_code?: string;
   snomed_code?: string;
   description: string;
   is_primary: boolean;
+  confidentiality?: ConfidentialityLevel;
+  confidentiality_display?: string;
   created_by: { id: number; full_name: string } | null;
   created_at: string;
 }
@@ -153,6 +158,8 @@ export interface Encounter {
   id: number;
   encounter_type: string;
   encounter_type_display: string;
+  confidentiality?: ConfidentialityLevel;
+  confidentiality_display?: string;
   chief_complaint: string;
   notes?: string;
   created_by: { id: number; full_name: string; role: Role } | null;
@@ -175,6 +182,8 @@ export interface EncounterSummary {
   id: number;
   encounter_type: string;
   encounter_type_display: string;
+  confidentiality?: ConfidentialityLevel;
+  confidentiality_display?: string;
   created_by: { id: number; full_name: string } | null;
   created_at_hospital: HospitalMinimal | null;
   patient_nhid: string;
@@ -274,6 +283,7 @@ export interface VitalSign {
   pain_score?: number;
   weight_kg?: number;
   height_cm?: number;
+  blood_glucose?: number;
   created_at: string;
 }
 
@@ -293,6 +303,8 @@ export interface LabOrder {
   created_at: string;
 }
 
+export type TriageAcuity = "RED" | "ORANGE" | "YELLOW" | "GREEN";
+
 export interface Appointment {
   id: number;
   patient: number | string;
@@ -308,6 +320,9 @@ export interface Appointment {
   appointment_type_display: string;
   status: "scheduled" | "checked_in" | "in_progress" | "completed" | "no_show" | "cancelled";
   status_display: string;
+  triage_acuity?: TriageAcuity | null;
+  triage_acuity_display?: string;
+  triage_level?: TriageAcuity | null;
   reason?: string;
   notes?: string;
   created_at: string;
@@ -413,6 +428,8 @@ export interface PatientDocument {
   file_size: number;
   file_size_kb: number;
   description: string;
+  confidentiality?: ConfidentialityLevel;
+  confidentiality_display?: string;
   uploaded_by: number | null;
   uploaded_by_name: string | null;
   download_url: string | null;

@@ -77,9 +77,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       navigate(path, { replace: true });
     }
+
+    function handlePageShow(event: PageTransitionEvent) {
+      if (event.persisted) {
+        // Page was restored from browser bfcache — force re-validation of user session.
+        // If the session has terminated, evict stale state and redirect to login immediately.
+        queryClient.clear();
+        refetch().then((res) => {
+          if (!res.data) {
+            navigate("/login", { replace: true });
+          }
+        }).catch(() => {
+          navigate("/login", { replace: true });
+        });
+      }
+    }
+
     window.addEventListener("auth:redirect", handleAuthRedirect);
-    return () => window.removeEventListener("auth:redirect", handleAuthRedirect);
-  }, [navigate]);
+    window.addEventListener("pageshow", handlePageShow);
+    return () => {
+      window.removeEventListener("auth:redirect", handleAuthRedirect);
+      window.removeEventListener("pageshow", handlePageShow);
+    };
+  }, [navigate, refetch]);
 
   async function login(username: string, password: string) {
     await fetchCsrf();
@@ -120,6 +140,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (theme) {
       localStorage.setItem("mEd-theme", theme);
     }
+
+    // Replace browser history entry so back button navigation does not restore stale patient charts
+    try {
+      window.history.replaceState(null, "", "/login");
+    } catch { /* ignore in non-browser environments */ }
 
     navigate("/login", { replace: true });
   }

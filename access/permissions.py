@@ -75,9 +75,26 @@ def _can_access_patient_inner(user, patient) -> AccessDecision:
     if not getattr(user, "is_authenticated", False):
         return AccessDecision(allowed=False, basis="denied")
 
-    # 1. Admin override — SYSTEM_ADMIN and HOSPITAL_ADMIN have full read
-    if user.is_admin_level:
+    # 1. Admin override — super_admin has unrestricted national access;
+    # hospital_admin is strictly tenant-scoped to their own hospital's patients.
+    if (
+        getattr(user, "is_super_admin", False)
+        or getattr(user, "role", None) == "super_admin"
+        or getattr(user, "is_superuser", False)
+    ):
         return AccessDecision(allowed=True, basis="admin")
+
+    if (
+        getattr(user, "is_hospital_admin", False)
+        or getattr(user, "role", None) == "hospital_admin"
+    ):
+        if (
+            user.hospital is not None
+            and patient.registered_at_hospital is not None
+            and user.hospital_id == patient.registered_at_hospital_id
+        ):
+            return AccessDecision(allowed=True, basis="admin")
+        return AccessDecision(allowed=False, basis="denied")
 
     # 2. Unexpired break-glass grant (always overrides consent)
     if BreakGlassAccess.objects.active_for(user, patient).exists():

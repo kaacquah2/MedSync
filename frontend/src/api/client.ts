@@ -99,15 +99,6 @@ api.interceptors.request.use((config) => {
       config.headers["X-CSRFToken"] = csrfToken;
     }
   }
-
-  // Attach Authorization header when auth_token is present in localStorage
-  if (typeof localStorage !== "undefined") {
-    const authToken = localStorage.getItem("auth_token");
-    if (authToken) {
-      config.headers["Authorization"] = `Bearer ${authToken}`;
-    }
-  }
-
   return config;
 });
 

@@ -114,7 +114,7 @@ def match_patient(
 
     Returns a MatchResult with confidence tier and list of candidate Patient objects.
     """
-    from .models import Patient
+    from .models import Patient, PatientSearchToken, generate_name_trigrams
 
     # ── 1. Deterministic: national ID ────────────────────────────────────
     if national_id.strip():
@@ -171,7 +171,24 @@ def match_patient(
         if dob.strip():
             target_soundex = soundex(name.strip())
             phonetic_matches = []
-            for p in Patient.objects.all().select_related("registered_at_hospital"):
+
+            # Pre-filter candidates using blind-indexed trigrams to avoid full-table O(N) scan
+            trigrams = generate_name_trigrams(name.strip(), "")
+            token_hashes = [make_blind_index(t) for t in trigrams if t]
+
+            if token_hashes:
+                candidate_ids = list(
+                    PatientSearchToken.objects.filter(token_hash__in=token_hashes)
+                    .values_list("patient_id", flat=True)
+                    .distinct()
+                )
+                candidates_qs = Patient.objects.filter(id__in=candidate_ids).select_related(
+                    "registered_at_hospital"
+                )
+            else:
+                candidates_qs = Patient.objects.all().select_related("registered_at_hospital")[:500]
+
+            for p in candidates_qs:
                 if str(p.date_of_birth or "").strip() == dob.strip():
                     p_full_name = f"{p.first_name} {p.last_name}".strip()
                     if soundex(p_full_name) == target_soundex:

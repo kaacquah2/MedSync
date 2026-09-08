@@ -11,6 +11,8 @@ services:
     # Override DATABASE_URL here if you want to use the local db service instead of Neon:
     # environment:
     #   DATABASE_URL: postgres://emr:emrpass@db:5432/emrdb
+    volumes:
+      - media_data:/app/media
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz/')\" || exit 1"]
       interval: 30s
@@ -44,3 +46,4 @@ services:
 
 volumes:
   postgres_data:
+  media_data:

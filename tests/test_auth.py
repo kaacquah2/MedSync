@@ -163,12 +163,12 @@ class TestMFAEnforcement:
         assert "/spa/mfa/verify" in data["redirect"]
 
     @override_settings(MFA_ENFORCED=True)
-    def test_receptionist_not_blocked_by_mfa(self, db, receptionist_a, client):
-        """RECEPTIONIST is not in MFA_REQUIRED_ROLES and reaches the endpoint normally."""
+    def test_receptionist_blocked_by_mfa(self, db, receptionist_a, client):
+        """RECEPTIONIST is in MFA_REQUIRED_ROLES and must be blocked when MFA_ENFORCED=True."""
         client.force_login(receptionist_a)
         resp = client.get("/api/dashboard/", follow=False)
-        # Should not be an MFA block (200 OK or non-MFA 403)
-        assert resp.status_code != 403 or not resp.json().get("mfa_required")
+        assert resp.status_code == 403
+        assert resp.json().get("mfa_required") is True
 
     @override_settings(MFA_ENFORCED=False)
     def test_mfa_not_enforced_allows_clinical_access(self, db, doctor_a, client):

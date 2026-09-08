@@ -196,22 +196,34 @@ export function LabResultsPage() {
         .filter(Boolean)
         .join(" | ") || "As specified";
 
+      const isCriticalResult = isCritical || notifyDoctor;
+
       return createLabResult(selectedOrder.encounter, {
+        order_id:        Number(selectedOrder.id),
         test_name:       selectedOrder.test_name,
         loinc_code:      selectedOrder.loinc_code || form.values.loinc_code || undefined,
         result_value:    computedResult,
         reference_range: referenceRangeText,
-        is_abnormal:     form.values.is_abnormal || isCritical,
+        is_abnormal:     form.values.is_abnormal || isCriticalResult,
+        is_critical:     isCriticalResult,
+        notify_doctor:   notifyDoctor || isCriticalResult,
       });
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       notifications.show({ color: "green", icon: <IconCheck />, message: "Lab result recorded." });
       
-      if (notifyDoctor) {
+      const isCriticalResult = isCritical || notifyDoctor;
+      if (isCriticalResult) {
+        const docName = res?.data?.doctor_name || "ordering clinician";
+        const wasNotified = res?.data?.doctor_notified;
         notifications.show({
-          title: "Critical Result Flagged",
-          message: "Result marked as abnormal — it will appear in the ordering doctor's alerts feed immediately.",
-          color: "orange",
+          title: "Critical Value Alert Dispatched",
+          message: wasNotified
+            ? `Emergency alert published to live feed and urgent notification dispatched to ${docName}.`
+            : `Emergency alert published to live feed for ${docName}.`,
+          color: "red",
+          icon: <IconUrgent />,
+          autoClose: 8000,
         });
       }
 
@@ -221,6 +233,7 @@ export function LabResultsPage() {
       setNotifyDoctor(false);
       form.reset();
       qc.invalidateQueries({ queryKey: ["lab-worklist"] });
+      qc.invalidateQueries({ queryKey: ["alerts"] });
     },
     onError: (e: unknown) =>
       notifications.show({ color: "red", message: e instanceof Error ? e.message : "Failed to save result." }),
@@ -250,8 +263,8 @@ export function LabResultsPage() {
           title="CRITICAL VALUE ALERT"
           variant="filled"
         >
-          This result has been marked as a critical value. The ordering physician will be paged
-          immediately. Check the physician notification box to trigger automated alerts.
+          This result has been marked as a life-threatening critical value. Submitting this result will
+          automatically publish an emergency PatientAlert and dispatch an urgent alert to the ordering physician.
         </Alert>
       )}
 
@@ -341,11 +354,15 @@ export function LabResultsPage() {
                   <Checkbox
                     label={<Text fw={600} c="red">🔴 Critical value — requires immediate physician notification</Text>}
                     checked={isCritical}
-                    onChange={(e) => setIsCritical(e.target.checked)}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsCritical(checked);
+                      if (checked) setNotifyDoctor(true);
+                    }}
                     color="red"
                   />
                   <Checkbox
-                    label="Flag critical result — appears in doctor's alerts feed immediately"
+                    label="Flag critical result — dispatches urgent alert to ordering doctor & emergency feed"
                     checked={notifyDoctor}
                     onChange={(e) => setNotifyDoctor(e.target.checked)}
                     color="orange"

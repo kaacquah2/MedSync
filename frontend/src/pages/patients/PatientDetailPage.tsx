@@ -43,12 +43,13 @@ import {
   IconFlask,
   IconPill,
   IconPrinter,
+  IconShield,
   IconStethoscope,
   IconUser,
   IconActivity,
   IconFolder,
-  IconShield,
 } from "@tabler/icons-react";
+import { ConfidentialityBadge } from "@/components/ConfidentialityBadge";
 import { AreaChart } from "@mantine/charts";
 import { modals } from "@mantine/modals";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -74,6 +75,7 @@ import {
 import { useAuth } from "@/auth/AuthProvider";
 import type { AIQueryResult, EncounterSummary, VitalSign, LabResult, Prescription, Referral } from "@/types";
 import { isRole } from "@/constants/roles";
+import { useIsPrinting } from "@/utils/useIsPrinting";
 
 dayjs.extend(relativeTime);
 
@@ -81,14 +83,18 @@ dayjs.extend(relativeTime);
 function useTabs(user: ReturnType<typeof useAuth>["user"]) {
   const role = user?.role;
   return {
-    showEncounters:   isRole(role, "doctor","nurse","hospital_admin","super_admin","receptionist","lab_technician"),
-    showLabs:         isRole(role, "doctor","nurse","lab_technician","hospital_admin","super_admin"),
-    showVitals:       isRole(role, "doctor","nurse","hospital_admin","super_admin"),
-    canEdit:          isRole(role, "doctor","nurse","receptionist","hospital_admin","super_admin"),
-    canCreateEncounter: isRole(role, "doctor","nurse"),
-    canAlert:         isRole(role, "doctor","nurse"),
-    canFhirExport:    isRole(role, "doctor","hospital_admin","super_admin"),
-    canQueryAI:       isRole(role, "doctor","nurse","hospital_admin","super_admin"),
+    showEncounters:   isRole(role, "doctor", "nurse"),
+    showLabs:         isRole(role, "doctor", "nurse", "lab_technician"),
+    showVitals:       isRole(role, "doctor", "nurse", "hospital_admin", "super_admin"),
+    showMeds:         isRole(role, "doctor", "nurse"),
+    showDocs:         isRole(role, "doctor", "nurse", "hospital_admin", "super_admin"),
+    showReferrals:    isRole(role, "doctor", "hospital_admin", "super_admin"),
+    canCreateReferral: isRole(role, "doctor"),
+    canEdit:          isRole(role, "doctor", "nurse", "receptionist", "hospital_admin", "super_admin"),
+    canCreateEncounter: isRole(role, "doctor", "nurse"),
+    canAlert:         isRole(role, "doctor", "nurse"),
+    canFhirExport:    isRole(role, "doctor", "hospital_admin", "super_admin"),
+    canQueryAI:       isRole(role, "doctor", "nurse", "hospital_admin", "super_admin"),
   };
 }
 
@@ -98,8 +104,17 @@ export function PatientDetailPage() {
   const navigate   = useNavigate();
   const qc         = useQueryClient();
   const perms      = useTabs(user);
+  const { isPrinting, triggerPrint } = useIsPrinting();
 
-  const [activeTab, setActiveTab] = useState<string | null>("encounters");
+  const getDefaultTab = () => {
+    if (perms.showEncounters) return "encounters";
+    if (perms.showVitals) return "vitals";
+    if (perms.showLabs) return "labs";
+    if (perms.showDocs) return "docs";
+    if (perms.showReferrals) return "referrals";
+    return null;
+  };
+  const [activeTab, setActiveTab] = useState<string | null>(getDefaultTab);
   const [bgOpen, { open: openBG, close: closeBG }] = useDisclosure(false);
   const [aiOpen, { open: openAI, close: closeAI }] = useDisclosure(false);
   const [bgReason, setBgReason] = useState("");
@@ -134,13 +149,13 @@ export function PatientDetailPage() {
   const { data: encounters } = useQuery({
     queryKey: ["encounters", nhid],
     queryFn:  () => fetchPatientEncounters(nhid!).then((r) => r.data),
-    enabled:  !!nhid && !!patient,
+    enabled:  !!nhid && !!patient && perms.showEncounters,
   });
 
   const { data: records, isLoading: recordsLoading } = useQuery({
     queryKey: ["patient-records", nhid],
     queryFn:  () => fetchPatientRecords(nhid!).then((r) => r.data),
-    enabled:  !!nhid && !!patient,
+    enabled:  !!nhid && !!patient && (perms.showLabs || perms.showMeds),
   });
 
   const { data: vitals } = useQuery({
@@ -152,19 +167,19 @@ export function PatientDetailPage() {
   const { data: patientReferrals, isLoading: referralsLoading } = useQuery({
     queryKey: ["patient-referrals", nhid],
     queryFn:  () => fetchReferrals({ patient_nhid: nhid! }).then((r) => r.data.results ?? []),
-    enabled:  !!nhid && !!patient,
+    enabled:  !!nhid && !!patient && perms.showReferrals,
   });
 
   const { data: hospitalsData } = useQuery({
     queryKey: ["hospitals-list"],
     queryFn:  () => fetchHospitals().then((r) => r.data.results),
-    enabled:  !!patient,
+    enabled:  !!patient && perms.canCreateReferral,
   });
 
   const { data: patientDocuments, isLoading: docsLoading } = useQuery({
     queryKey: ["patient-documents", nhid],
     queryFn:  () => fetchPatientDocuments(nhid!).then((r) => r.data),
-    enabled:  !!nhid && !!patient,
+    enabled:  !!nhid && !!patient && perms.showDocs,
   });
 
   const uploadDocMutation = useMutation({
@@ -350,37 +365,39 @@ export function PatientDetailPage() {
 
   return (
     <Stack gap="md">
-      {/* Printable Chart View (only visible when printing) */}
-      <div className="print-only" style={{ padding: "20px" }}>
-        <Title order={2} mb="xs">{patient.full_name}</Title>
-        <Text size="sm" c="dimmed" mb="md">
-          NHID: {patient.universal_id} | DOB: {patient.date_of_birth} | Sex: {patient.sex_display} | Blood Group: {patient.blood_group_display || patient.blood_group || "—"}
-        </Text>
-        <Divider my="md" />
-        <Title order={3} mb="xs">Active Alerts & Risk Factors</Title>
-        {activeAlerts.length > 0 ? (
-          <Group gap="xs" mb="md">
-            {activeAlerts.map(a => (
-              <Badge key={a.id} color={a.is_high_risk ? "red" : "orange"} variant="filled">{a.label}</Badge>
-            ))}
-          </Group>
-        ) : (
-          <Text size="sm" c="dimmed" mb="md">None recorded.</Text>
-        )}
-        <Divider my="md" />
-        <Title order={3} mb="xs">Recent Encounters</Title>
-        {encounters && encounters.length > 0 ? (
-          <Stack gap="xs" mb="md">
-            {encounters.slice(0, 5).map(e => (
-              <Box key={e.id} style={{ borderBottom: "1px solid #ddd", paddingBottom: "8px" }}>
-                <Text size="xs" c="dimmed">{e.created_by?.full_name ?? "—"}</Text>
-              </Box>
-            ))}
-          </Stack>
-        ) : (
-          <Text size="sm" c="dimmed" mb="md">No encounters recorded.</Text>
-        )}
-      </div>
+      {/* Printable Chart View (only mounted in DOM during active print to prevent hidden-DOM PHI leak) */}
+      {isPrinting && (
+        <div className="print-only" style={{ padding: "20px" }}>
+          <Title order={2} mb="xs">{patient.full_name}</Title>
+          <Text size="sm" c="dimmed" mb="md">
+            NHID: {patient.universal_id} | DOB: {patient.date_of_birth} | Sex: {patient.sex_display} | Blood Group: {patient.blood_group_display || patient.blood_group || "—"}
+          </Text>
+          <Divider my="md" />
+          <Title order={3} mb="xs">Active Alerts & Risk Factors</Title>
+          {activeAlerts.length > 0 ? (
+            <Group gap="xs" mb="md">
+              {activeAlerts.map(a => (
+                <Badge key={a.id} color={a.is_high_risk ? "red" : "orange"} variant="filled">{a.label}</Badge>
+              ))}
+            </Group>
+          ) : (
+            <Text size="sm" c="dimmed" mb="md">None recorded.</Text>
+          )}
+          <Divider my="md" />
+          <Title order={3} mb="xs">Recent Encounters</Title>
+          {encounters && encounters.length > 0 ? (
+            <Stack gap="xs" mb="md">
+              {encounters.slice(0, 5).map(e => (
+                <Box key={e.id} style={{ borderBottom: "1px solid #ddd", paddingBottom: "8px" }}>
+                  <Text size="xs" c="dimmed">{e.created_by?.full_name ?? "—"}</Text>
+                </Box>
+              ))}
+            </Stack>
+          ) : (
+            <Text size="sm" c="dimmed" mb="md">No encounters recorded.</Text>
+          )}
+        </div>
+      )}
       {/* ── Banners ─────────────────────────────────────────────────────────── */}
       {isCross && (
         <Alert color="yellow" icon={<IconArrowLeftRight />} title={`Cross-hospital access — ${patient.access_basis}`}>
@@ -499,7 +516,7 @@ export function PatientDetailPage() {
                   </Button>
                 )}
 
-                {(user?.role === "doctor" || user?.is_admin_level) && (
+                {perms.canCreateReferral && (
                   <Button
                     variant="light"
                     color="orange"
@@ -531,7 +548,7 @@ export function PatientDetailPage() {
                   leftSection={<IconPrinter size={16} />}
                   fullWidth
                   size="sm"
-                  onClick={() => window.print()}
+                  onClick={triggerPrint}
                   aria-label="Print patient chart"
                 >
                   Print Chart
@@ -555,297 +572,327 @@ export function PatientDetailPage() {
           )}
         </Stack>
 
-        {/* RIGHT COLUMN: 6 Tab panels */}
+        {/* RIGHT COLUMN: Tab panels */}
         <div style={{ gridColumn: "span 2" }}>
           <Tabs value={activeTab} onChange={setActiveTab} variant="outline">
             <Tabs.List>
-              <Tabs.Tab value="encounters" leftSection={<IconStethoscope size={14} />}>Encounters</Tabs.Tab>
-              <Tabs.Tab value="vitals" leftSection={<IconActivity size={14} />}>Vitals</Tabs.Tab>
-              <Tabs.Tab value="labs" leftSection={<IconFlask size={14} />}>Lab results</Tabs.Tab>
-              <Tabs.Tab value="meds" leftSection={<IconPill size={14} />}>Medications</Tabs.Tab>
-              <Tabs.Tab value="docs" leftSection={<IconFolder size={14} />}>Documents</Tabs.Tab>
-              <Tabs.Tab value="referrals" leftSection={<IconArrowLeftRight size={14} />}>Referrals</Tabs.Tab>
+              {perms.showEncounters && (
+                <Tabs.Tab value="encounters" leftSection={<IconStethoscope size={14} />}>Encounters</Tabs.Tab>
+              )}
+              {perms.showVitals && (
+                <Tabs.Tab value="vitals" leftSection={<IconActivity size={14} />}>Vitals</Tabs.Tab>
+              )}
+              {perms.showLabs && (
+                <Tabs.Tab value="labs" leftSection={<IconFlask size={14} />}>Lab results</Tabs.Tab>
+              )}
+              {perms.showMeds && (
+                <Tabs.Tab value="meds" leftSection={<IconPill size={14} />}>Medications</Tabs.Tab>
+              )}
+              {perms.showDocs && (
+                <Tabs.Tab value="docs" leftSection={<IconFolder size={14} />}>Documents</Tabs.Tab>
+              )}
+              {perms.showReferrals && (
+                <Tabs.Tab value="referrals" leftSection={<IconArrowLeftRight size={14} />}>Referrals</Tabs.Tab>
+              )}
             </Tabs.List>
 
             {/* TAB 1: Encounters */}
-            <Tabs.Panel value="encounters" pt="md">
-              <Stack gap="sm">
-                {encounters && encounters.length > 0 ? (
-                  encounters.map((enc) => (
-                    <EncounterRow key={enc.id} enc={enc} nhid={nhid!} />
-                  ))
-                ) : (
-                  <Text c="dimmed" ta="center" py="xl">No encounters on record.</Text>
-                )}
-              </Stack>
-            </Tabs.Panel>
+            {perms.showEncounters && (
+              <Tabs.Panel value="encounters" pt="md">
+                <Stack gap="sm">
+                  {encounters && encounters.length > 0 ? (
+                    encounters.map((enc) => (
+                      <EncounterRow key={enc.id} enc={enc} nhid={nhid!} />
+                    ))
+                  ) : (
+                    <Text c="dimmed" ta="center" py="xl">No encounters on record.</Text>
+                  )}
+                </Stack>
+              </Tabs.Panel>
+            )}
 
             {/* TAB 2: Vitals */}
-            <Tabs.Panel value="vitals" pt="md">
-              <VitalsTab vitals={vitals} nhid={nhid!} />
-            </Tabs.Panel>
+            {perms.showVitals && (
+              <Tabs.Panel value="vitals" pt="md">
+                <VitalsTab vitals={vitals} nhid={nhid!} />
+              </Tabs.Panel>
+            )}
 
             {/* TAB 3: Lab Results with abnormalities flags */}
-            <Tabs.Panel value="labs" pt="md">
-              {recordsLoading ? <Skeleton height={200} /> : (
-                !records?.lab_results.length ? (
-                  <Text c="dimmed" ta="center" py="xl">No lab results recorded.</Text>
-                ) : (
-                  <Table.ScrollContainer minWidth={600}>
-                    <Table striped highlightOnHover>
-                      <Table.Thead>
-                        <Table.Tr>
-                          <Table.Th>Test</Table.Th>
-                          <Table.Th>LOINC</Table.Th>
-                          <Table.Th>Result</Table.Th>
-                          <Table.Th>Ref Range</Table.Th>
-                          <Table.Th>Flag</Table.Th>
-                        </Table.Tr>
-                      </Table.Thead>
-                      <Table.Tbody>
-                        {records.lab_results.map((lab: LabResult) => {
-                          const isCritical = lab.is_abnormal && lab.result_value?.includes("CRITICAL");
-                          return (
-                            <Table.Tr
-                              key={lab.id}
-                              style={{
-                                cursor: "pointer",
-                                backgroundColor: isCritical ? "var(--bg-red)" : undefined,
-                              }}
-                              onClick={() => setSelectedLab(lab)}
-                            >
-                              <Table.Td fw={600} style={{ color: isCritical ? "var(--accent-red)" : undefined }}>
-                                {lab.test_name}
-                              </Table.Td>
-                              <Table.Td>{lab.loinc_code || "—"}</Table.Td>
-                              <Table.Td fw={700} style={{ color: isCritical ? "var(--accent-red)" : undefined }}>
-                                {lab.result_value}
-                              </Table.Td>
-                              <Table.Td>{lab.reference_range || "—"}</Table.Td>
-                              <Table.Td>
-                                <Badge color={lab.is_abnormal ? "red" : "green"} variant="filled">
-                                  {lab.is_abnormal ? "Abnormal" : "Normal"}
-                                </Badge>
-                              </Table.Td>
-                            </Table.Tr>
-                          );
-                        })}
-                      </Table.Tbody>
-                    </Table>
-                  </Table.ScrollContainer>
-                )
-              )}
-            </Tabs.Panel>
-
-            {/* TAB 4: Medications */}
-            <Tabs.Panel value="meds" pt="md">
-              <Card withBorder radius="md" p="md" bg="var(--surface-2)">
-                <Group justify="space-between" mb="md">
-                  <Text fw={600} size="sm" tt="uppercase" c="dimmed">Prescriptions list</Text>
-                  {user?.role === "doctor" && (
-                    <Button size="xs" component={Link} to="/prescriptions" leftSection={<IconPill size={12} />}>
-                      Write new prescription
-                    </Button>
-                  )}
-                </Group>
-                
-                {recordsLoading ? <Skeleton height={150} /> : (
-                  !records?.prescriptions.length ? (
-                    <Text c="dimmed" ta="center" py="xl">No prescriptions active.</Text>
+            {perms.showLabs && (
+              <Tabs.Panel value="labs" pt="md">
+                {recordsLoading ? <Skeleton height={200} /> : (
+                  !records?.lab_results.length ? (
+                    <Text c="dimmed" ta="center" py="xl">No lab results recorded.</Text>
                   ) : (
-                    <Table striped highlightOnHover>
-                      <Table.Thead>
-                        <Table.Tr>
-                          <Table.Th>Drug Name</Table.Th>
-                          <Table.Th>Dose</Table.Th>
-                          <Table.Th>Frequency</Table.Th>
-                          <Table.Th>Instructions</Table.Th>
-                        </Table.Tr>
-                      </Table.Thead>
-                      <Table.Tbody>
-                        {records.prescriptions.map((rx: Prescription) => (
-                            <Table.Tr key={rx.id}>
-                              <Table.Td fw={600}>{rx.drug_name}</Table.Td>
-                              <Table.Td>{rx.dosage}</Table.Td>
-                              <Table.Td>{rx.frequency}</Table.Td>
-                              <Table.Td>
-                                <Text size="xs" c="dimmed">{rx.instructions || "—"}</Text>
-                              </Table.Td>
-                            </Table.Tr>
-                          ))}
-                      </Table.Tbody>
-                    </Table>
+                    <Table.ScrollContainer minWidth={600}>
+                      <Table striped highlightOnHover>
+                        <Table.Thead>
+                          <Table.Tr>
+                            <Table.Th>Test</Table.Th>
+                            <Table.Th>LOINC</Table.Th>
+                            <Table.Th>Result</Table.Th>
+                            <Table.Th>Ref Range</Table.Th>
+                            <Table.Th>Flag</Table.Th>
+                          </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                          {records.lab_results.map((lab: LabResult) => {
+                            const isCritical = lab.is_abnormal && lab.result_value?.includes("CRITICAL");
+                            return (
+                              <Table.Tr
+                                key={lab.id}
+                                style={{
+                                  cursor: "pointer",
+                                  backgroundColor: isCritical ? "var(--bg-red)" : undefined,
+                                }}
+                                onClick={() => setSelectedLab(lab)}
+                              >
+                                <Table.Td fw={600} style={{ color: isCritical ? "var(--accent-red)" : undefined }}>
+                                  {lab.test_name}
+                                </Table.Td>
+                                <Table.Td>{lab.loinc_code || "—"}</Table.Td>
+                                <Table.Td fw={700} style={{ color: isCritical ? "var(--accent-red)" : undefined }}>
+                                  {lab.result_value}
+                                </Table.Td>
+                                <Table.Td>{lab.reference_range || "—"}</Table.Td>
+                                <Table.Td>
+                                  <Badge color={lab.is_abnormal ? "red" : "green"} variant="filled">
+                                    {lab.is_abnormal ? "Abnormal" : "Normal"}
+                                  </Badge>
+                                </Table.Td>
+                              </Table.Tr>
+                            );
+                          })}
+                        </Table.Tbody>
+                      </Table>
+                    </Table.ScrollContainer>
                   )
                 )}
-              </Card>
-            </Tabs.Panel>
+              </Tabs.Panel>
+            )}
+
+            {/* TAB 4: Medications */}
+            {perms.showMeds && (
+              <Tabs.Panel value="meds" pt="md">
+                <Card withBorder radius="md" p="md" bg="var(--surface-2)">
+                  <Group justify="space-between" mb="md">
+                    <Text fw={600} size="sm" tt="uppercase" c="dimmed">Prescriptions list</Text>
+                    {user?.role === "doctor" && (
+                      <Button size="xs" component={Link} to="/prescriptions" leftSection={<IconPill size={12} />}>
+                        Write new prescription
+                      </Button>
+                    )}
+                  </Group>
+                  
+                  {recordsLoading ? <Skeleton height={150} /> : (
+                    !records?.prescriptions.length ? (
+                      <Text c="dimmed" ta="center" py="xl">No prescriptions active.</Text>
+                    ) : (
+                      <Table striped highlightOnHover>
+                        <Table.Thead>
+                          <Table.Tr>
+                            <Table.Th>Drug Name</Table.Th>
+                            <Table.Th>Dose</Table.Th>
+                            <Table.Th>Frequency</Table.Th>
+                            <Table.Th>Instructions</Table.Th>
+                          </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                          {records.prescriptions.map((rx: Prescription) => (
+                              <Table.Tr key={rx.id}>
+                                <Table.Td fw={600}>{rx.drug_name}</Table.Td>
+                                <Table.Td>{rx.dosage}</Table.Td>
+                                <Table.Td>{rx.frequency}</Table.Td>
+                                <Table.Td>
+                                  <Text size="xs" c="dimmed">{rx.instructions || "—"}</Text>
+                                </Table.Td>
+                              </Table.Tr>
+                            ))}
+                        </Table.Tbody>
+                      </Table>
+                    )
+                  )}
+                </Card>
+              </Tabs.Panel>
+            )}
 
             {/* TAB 5: Documents */}
-            <Tabs.Panel value="docs" pt="md">
-              <Card withBorder radius="md" p="md" bg="var(--surface-2)">
-                <Group justify="space-between" mb="md">
-                  <Text fw={600} size="sm" tt="uppercase" c="dimmed">Patient Documents</Text>
-                  <Group gap="xs">
-                    <Textarea
-                      placeholder="Description (optional)"
-                      size="xs"
-                      value={docDescription}
-                      onChange={(e) => setDocDescription(e.currentTarget.value)}
-                      minRows={1}
-                      autosize
-                      style={{ width: 180 }}
-                    />
-                    <FileButton
-                      onChange={(file) => {
-                        if (file) {
-                          uploadDocMutation.mutate({ file, description: docDescription });
-                          setDocDescription("");
-                        }
-                      }}
-                    >
-                      {(props) => (
-                        <Button
-                          {...props}
-                          size="xs"
-                          loading={uploadDocMutation.isPending}
-                          leftSection={<IconDownload size={12} style={{ transform: "rotate(180deg)" }} />}
-                        >
-                          Upload file
-                        </Button>
-                      )}
-                    </FileButton>
+            {perms.showDocs && (
+              <Tabs.Panel value="docs" pt="md">
+                <Card withBorder radius="md" p="md" bg="var(--surface-2)">
+                  <Group justify="space-between" mb="md">
+                    <Text fw={600} size="sm" tt="uppercase" c="dimmed">Patient Documents</Text>
+                    <Group gap="xs">
+                      <Textarea
+                        placeholder="Description (optional)"
+                        size="xs"
+                        value={docDescription}
+                        onChange={(e) => setDocDescription(e.currentTarget.value)}
+                        minRows={1}
+                        autosize
+                        style={{ width: 180 }}
+                      />
+                      <FileButton
+                        onChange={(file) => {
+                          if (file) {
+                            uploadDocMutation.mutate({ file, description: docDescription });
+                            setDocDescription("");
+                          }
+                        }}
+                      >
+                        {(props) => (
+                          <Button
+                            {...props}
+                            size="xs"
+                            loading={uploadDocMutation.isPending}
+                            leftSection={<IconDownload size={12} style={{ transform: "rotate(180deg)" }} />}
+                          >
+                            Upload file
+                          </Button>
+                        )}
+                      </FileButton>
+                    </Group>
                   </Group>
-                </Group>
 
-                {docsLoading ? (
-                  <Stack gap="xs">
-                    {[1, 2, 3].map((i) => <Skeleton key={i} height={36} radius="sm" />)}
-                  </Stack>
-                ) : !patientDocuments?.length ? (
-                  <Text c="dimmed" ta="center" py="xl" size="sm">No documents uploaded yet.</Text>
-                ) : (
-                  <Table striped highlightOnHover>
-                    <Table.Thead>
-                      <Table.Tr>
-                        <Table.Th>File name</Table.Th>
-                        <Table.Th>Description</Table.Th>
-                        <Table.Th>Size</Table.Th>
-                        <Table.Th>Uploaded by</Table.Th>
-                        <Table.Th>Date</Table.Th>
-                        <Table.Th>Actions</Table.Th>
-                      </Table.Tr>
-                    </Table.Thead>
-                    <Table.Tbody>
-                      {patientDocuments.map((doc) => (
-                        <Table.Tr key={doc.id}>
-                          <Table.Td fw={600}>{doc.original_name}</Table.Td>
-                          <Table.Td>{doc.description || "—"}</Table.Td>
-                          <Table.Td>{doc.file_size_kb} KB</Table.Td>
-                          <Table.Td>{doc.uploaded_by_name || "—"}</Table.Td>
-                          <Table.Td>{dayjs(doc.created_at).format("DD MMM YYYY")}</Table.Td>
-                          <Table.Td>
-                            <Group gap="xs">
-                              <Button
-                                size="xs"
-                                variant="light"
-                                component="a"
-                                href={doc.download_url ?? "#"}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                disabled={!doc.download_url}
-                              >
-                                Download
-                              </Button>
-                              <Button
-                                size="xs"
-                                variant="light"
-                                color="red"
-                                loading={deleteDocMutation.isPending && deleteDocMutation.variables === doc.id}
-                                onClick={() =>
-                                  modals.openConfirmModal({
-                                    title: "Delete document",
-                                    children: (
-                                      <Text size="sm">
-                                        Are you sure you want to delete{" "}
-                                        <strong>{doc.original_name}</strong>?
-                                        This action cannot be undone.
-                                      </Text>
-                                    ),
-                                    labels: { confirm: "Delete", cancel: "Cancel" },
-                                    confirmProps: { color: "red" },
-                                    onConfirm: () => deleteDocMutation.mutate(doc.id),
-                                  })
-                                }
-                              >
-                                Delete
-                              </Button>
-                            </Group>
-                          </Table.Td>
-                        </Table.Tr>
-                      ))}
-                    </Table.Tbody>
-                  </Table>
-                )}
-              </Card>
-            </Tabs.Panel>
-
-            {/* TAB 6: Referrals */}
-            <Tabs.Panel value="referrals" pt="md">
-              <Card withBorder radius="md" p="md" bg="var(--surface-2)">
-                <Group justify="space-between" mb="md">
-                  <Text fw={600} size="sm" tt="uppercase" c="dimmed">Referrals Tracking</Text>
-                  <Button size="xs" leftSection={<IconArrowLeftRight size={12} />} onClick={() => setReferralOpen(true)}>
-                    New Referral
-                  </Button>
-                </Group>
-
-                {referralsLoading ? <Skeleton height={150} /> : (
-                  !patientReferrals?.length ? (
-                    <Text c="dimmed" ta="center" py="xl">No referrals on record.</Text>
+                  {docsLoading ? (
+                    <Stack gap="xs">
+                      {[1, 2, 3].map((i) => <Skeleton key={i} height={36} radius="sm" />)}
+                    </Stack>
+                  ) : !patientDocuments?.length ? (
+                    <Text c="dimmed" ta="center" py="xl" size="sm">No documents uploaded yet.</Text>
                   ) : (
-                    <Table striped>
+                    <Table striped highlightOnHover>
                       <Table.Thead>
                         <Table.Tr>
-                          <Table.Th>To Hospital</Table.Th>
-                          <Table.Th>From</Table.Th>
-                          <Table.Th>Status</Table.Th>
-                          <Table.Th>Priority</Table.Th>
-                          <Table.Th>Reason</Table.Th>
+                          <Table.Th>File name</Table.Th>
+                          <Table.Th>Sensitivity</Table.Th>
+                          <Table.Th>Description</Table.Th>
+                          <Table.Th>Size</Table.Th>
+                          <Table.Th>Uploaded by</Table.Th>
                           <Table.Th>Date</Table.Th>
+                          <Table.Th>Actions</Table.Th>
                         </Table.Tr>
                       </Table.Thead>
                       <Table.Tbody>
-                        {patientReferrals.map((r: Referral) => (
-                          <Table.Tr key={r.id}>
-                            <Table.Td fw={600}>{r.to_hospital_name}</Table.Td>
-                            <Table.Td>{r.from_hospital_name}</Table.Td>
+                        {patientDocuments.map((doc) => (
+                          <Table.Tr key={doc.id}>
+                            <Table.Td fw={600}>{doc.original_name}</Table.Td>
                             <Table.Td>
-                              <Badge
-                                color={
-                                  r.status === "accepted" ? "green" :
-                                  r.status === "rejected" ? "red" :
-                                  r.status === "completed" ? "blue" : "orange"
-                                }
-                                variant="light"
-                              >
-                                {r.status_display}
-                              </Badge>
+                              <ConfidentialityBadge level={doc.confidentiality} showNormal size="xs" />
                             </Table.Td>
+                            <Table.Td>{doc.description || "—"}</Table.Td>
+                            <Table.Td>{doc.file_size_kb} KB</Table.Td>
+                            <Table.Td>{doc.uploaded_by_name || "—"}</Table.Td>
+                            <Table.Td>{dayjs(doc.created_at).format("DD MMM YYYY")}</Table.Td>
                             <Table.Td>
-                              <Badge color={r.priority === "stat" ? "red" : r.priority === "urgent" ? "orange" : "gray"} variant="light" size="xs">
-                                {r.priority_display}
-                              </Badge>
+                              <Group gap="xs">
+                                <Button
+                                  size="xs"
+                                  variant="light"
+                                  component="a"
+                                  href={doc.download_url ?? "#"}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  disabled={!doc.download_url}
+                                >
+                                  Download
+                                </Button>
+                                <Button
+                                  size="xs"
+                                  variant="light"
+                                  color="red"
+                                  loading={deleteDocMutation.isPending && deleteDocMutation.variables === doc.id}
+                                  onClick={() =>
+                                    modals.openConfirmModal({
+                                      title: "Delete document",
+                                      children: (
+                                        <Text size="sm">
+                                          Are you sure you want to delete{" "}
+                                          <strong>{doc.original_name}</strong>?
+                                          This action cannot be undone.
+                                        </Text>
+                                      ),
+                                      labels: { confirm: "Delete", cancel: "Cancel" },
+                                      confirmProps: { color: "red" },
+                                      onConfirm: () => deleteDocMutation.mutate(doc.id),
+                                    })
+                                  }
+                                >
+                                  Delete
+                                </Button>
+                              </Group>
                             </Table.Td>
-                            <Table.Td><Text size="xs" c="dimmed">{r.reason}</Text></Table.Td>
-                            <Table.Td><Text size="xs" c="dimmed">{dayjs(r.created_at).format("DD MMM YYYY")}</Text></Table.Td>
                           </Table.Tr>
                         ))}
                       </Table.Tbody>
                     </Table>
-                  )
-                )}
-              </Card>
-            </Tabs.Panel>
+                  )}
+                </Card>
+              </Tabs.Panel>
+            )}
+
+            {/* TAB 6: Referrals */}
+            {perms.showReferrals && (
+              <Tabs.Panel value="referrals" pt="md">
+                <Card withBorder radius="md" p="md" bg="var(--surface-2)">
+                  <Group justify="space-between" mb="md">
+                    <Text fw={600} size="sm" tt="uppercase" c="dimmed">Referrals Tracking</Text>
+                    {perms.canCreateReferral && (
+                      <Button size="xs" leftSection={<IconArrowLeftRight size={12} />} onClick={() => setReferralOpen(true)}>
+                        New Referral
+                      </Button>
+                    )}
+                  </Group>
+
+                  {referralsLoading ? <Skeleton height={150} /> : (
+                    !patientReferrals?.length ? (
+                      <Text c="dimmed" ta="center" py="xl">No referrals on record.</Text>
+                    ) : (
+                      <Table striped>
+                        <Table.Thead>
+                          <Table.Tr>
+                            <Table.Th>To Hospital</Table.Th>
+                            <Table.Th>From</Table.Th>
+                            <Table.Th>Status</Table.Th>
+                            <Table.Th>Priority</Table.Th>
+                            <Table.Th>Reason</Table.Th>
+                            <Table.Th>Date</Table.Th>
+                          </Table.Tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                          {patientReferrals.map((r: Referral) => (
+                            <Table.Tr key={r.id}>
+                              <Table.Td fw={600}>{r.to_hospital_name}</Table.Td>
+                              <Table.Td>{r.from_hospital_name}</Table.Td>
+                              <Table.Td>
+                                <Badge
+                                  color={
+                                    r.status === "accepted" ? "green" :
+                                    r.status === "rejected" ? "red" :
+                                    r.status === "completed" ? "blue" : "orange"
+                                  }
+                                  variant="light"
+                                >
+                                  {r.status_display}
+                                </Badge>
+                              </Table.Td>
+                              <Table.Td>
+                                <Badge color={r.priority === "stat" ? "red" : r.priority === "urgent" ? "orange" : "gray"} variant="light" size="xs">
+                                  {r.priority_display}
+                                </Badge>
+                              </Table.Td>
+                              <Table.Td><Text size="xs" c="dimmed">{r.reason}</Text></Table.Td>
+                              <Table.Td><Text size="xs" c="dimmed">{dayjs(r.created_at).format("DD MMM YYYY")}</Text></Table.Td>
+                            </Table.Tr>
+                          ))}
+                        </Table.Tbody>
+                      </Table>
+                    )
+                  )}
+                </Card>
+              </Tabs.Panel>
+            )}
           </Tabs>
         </div>
       </SimpleGrid>
@@ -1044,6 +1091,7 @@ function EncounterRow({ enc, nhid: _nhid }: { enc: EncounterSummary; nhid: strin
           <Box>
             <Group gap="xs">
               <Badge variant="light" size="sm">{enc.encounter_type_display}</Badge>
+              <ConfidentialityBadge level={enc.confidentiality} size="xs" />
               {enc.is_cross_hospital && (
                 <Badge color="yellow" size="xs" leftSection={<IconArrowLeftRight size={10} />}>
                   External — {enc.created_at_hospital?.name}

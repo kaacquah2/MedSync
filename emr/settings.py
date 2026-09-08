@@ -348,6 +348,7 @@ MFA_REQUIRED_ROLES = frozenset(
         "doctor",
         "nurse",
         "lab_technician",
+        "receptionist",
     }
 )
 
@@ -361,9 +362,12 @@ FHIR_BASE_URL = env("FHIR_BASE_URL", default="https://emr.example.com/fhir")
 # ---------------------------------------------------------------------------
 # AI assistant (Phase E)
 # AI_PROVIDER = "ollama" (production default, zero PHI egress) | "gemini" (dev/test only, DEBUG=True)
-# In production, AI_PROVIDER=ollama is required for compliance (HIPAA, Ghana DPA 2012).
-# Gemini transmits PHI to external Google servers and is blocked when DEBUG=False
+# In production, AI_PROVIDER=ollama is required for compliance (HIPAA, Ghana DPA 2012 Act 843).
+# Gemini transmits PHI to external Google servers and is strictly blocked when DEBUG=False
 # unless explicitly overridden with ALLOW_EXTERNAL_AI_IN_PRODUCTION=True.
+# WARNING: ALLOW_EXTERNAL_AI_IN_PRODUCTION MUST be False in production deployments.
+# Enabling it triggers cross-border egress of special personal health data without
+# Data Protection Commission (DPC) authorization under Ghana Data Protection Act 2012 (Act 843 §47).
 # ---------------------------------------------------------------------------
 AI_PROVIDER = env("AI_PROVIDER")
 ALLOW_EXTERNAL_AI_IN_PRODUCTION = env("ALLOW_EXTERNAL_AI_IN_PRODUCTION")
@@ -387,6 +391,7 @@ AXES_HTTP_RESPONSE_CODE = 403
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SECURE_SSL_REDIRECT = True
+    SECURE_REDIRECT_EXEMPT = [r"^healthz/"]
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = 31536000  # 1 year
@@ -400,7 +405,7 @@ if not DEBUG:
 # ---------------------------------------------------------------------------
 # Session security
 # ---------------------------------------------------------------------------
-SESSION_COOKIE_AGE = 3600  # 1 hour idle timeout
+SESSION_COOKIE_AGE = 900  # 15 minutes (HIPAA § 164.312(a)(2)(iii) clinical inactivity limit)
 SESSION_SAVE_EVERY_REQUEST = True  # reset timer on activity
 SESSION_COOKIE_HTTPONLY = True
 # CSRF_COOKIE_HTTPONLY must remain False (Django default) so the SPA can read

@@ -130,6 +130,7 @@ MFA_REQUIRED_ROLES = frozenset(
         "doctor",
         "nurse",
         "lab_technician",
+        "receptionist",
     }
 )
 

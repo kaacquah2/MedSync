@@ -13,7 +13,21 @@ vi.mock("@/pages/common/AccessDenied", () => ({
 }));
 
 import { useAuth } from "@/auth/AuthProvider";
+import type { CurrentUser } from "@/types";
+
 const mockUseAuth = vi.mocked(useAuth);
+type AuthContextType = ReturnType<typeof useAuth>;
+
+function mockAuth(overrides: Partial<AuthContextType> = {}): AuthContextType {
+  return {
+    user: null,
+    loading: false,
+    login: vi.fn(),
+    logout: vi.fn(),
+    refresh: vi.fn(),
+    ...overrides,
+  };
+}
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -27,10 +41,12 @@ describe("RequireRole", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("does not render children while auth is loading", () => {
-    mockUseAuth.mockReturnValue({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      user: null, loading: true, logout: vi.fn() as any,
-    });
+    mockUseAuth.mockReturnValue(
+      mockAuth({
+        user: null,
+        loading: true,
+      })
+    );
 
     render(
       <RequireRole roles={["doctor"]}>
@@ -43,10 +59,12 @@ describe("RequireRole", () => {
   });
 
   it("renders children when the user's role is in the allowed list", () => {
-    mockUseAuth.mockReturnValue({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      user: { role: "doctor" } as any, loading: false, logout: vi.fn() as any,
-    });
+    mockUseAuth.mockReturnValue(
+      mockAuth({
+        user: { role: "doctor" } as unknown as CurrentUser,
+        loading: false,
+      })
+    );
 
     render(
       <RequireRole roles={["doctor", "nurse"]}>
@@ -59,10 +77,12 @@ describe("RequireRole", () => {
   });
 
   it("redirects to /403 when the user role is not in the allowed list", () => {
-    mockUseAuth.mockReturnValue({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      user: { role: "receptionist" } as any, loading: false, logout: vi.fn() as any,
-    });
+    mockUseAuth.mockReturnValue(
+      mockAuth({
+        user: { role: "receptionist" } as unknown as CurrentUser,
+        loading: false,
+      })
+    );
 
     render(
       <RequireRole roles={["doctor", "nurse"]}>

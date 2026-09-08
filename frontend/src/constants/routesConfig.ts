@@ -128,7 +128,7 @@ export const routesConfig: RouteDefinition[] = [
   {
     path: "encounters/:id",
     element: EncounterDetailPage,
-    roles: CLINICAL_AND_ADMIN,
+    roles: ["doctor", "nurse"],
   },
 
   // ── Shared clinical pages ────────────────────────────────────────────────────

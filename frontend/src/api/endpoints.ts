@@ -31,6 +31,7 @@ import type {
   VitalSign,
   Ward,
   MedicationAdministration,
+  ConfidentialityLevel,
 } from "@/types";
 
 // ── CSRF ─────────────────────────────────────────────────────────────────────
@@ -108,7 +109,12 @@ export const fetchPatientEncounters = (nhid: string) =>
 
 export const createEncounter = (
   nhid: string,
-  data: { encounter_type: string; chief_complaint: string; notes?: string }
+  data: {
+    encounter_type: string;
+    chief_complaint: string;
+    notes?: string;
+    confidentiality?: ConfidentialityLevel;
+  }
 ) => api.post<Encounter>(`/patients/${nhid}/encounters/`, data);
 
 export const fetchEncounter = (id: number) => api.get<Encounter>(`/encounters/${id}/`);
@@ -117,7 +123,13 @@ export const fetchEncounter = (id: number) => api.get<Encounter>(`/encounters/${
 
 export const createDiagnosis = (
   encounterId: number,
-  data: { icd_code?: string; snomed_code?: string; description: string; is_primary?: boolean }
+  data: {
+    icd_code?: string;
+    snomed_code?: string;
+    description: string;
+    is_primary?: boolean;
+    confidentiality?: ConfidentialityLevel;
+  }
 ) => api.post(`/encounters/${encounterId}/diagnoses/`, data);
 
 export const createPrescription = (
@@ -128,20 +140,42 @@ export const createPrescription = (
     dosage: string;
     frequency: string;
     instructions?: string;
+    allergy_override_reason?: string;
   }
 ) => api.post(`/encounters/${encounterId}/prescriptions/`, data);
 
+export interface CreateLabResultPayload {
+  test_name: string;
+  loinc_code?: string;
+  result_value: string;
+  reference_range?: string;
+  is_abnormal?: boolean;
+  is_critical?: boolean;
+  notify_doctor?: boolean;
+  order_id?: number;
+  performed_at?: string;
+}
+
+export interface LabResultCreatedResponse {
+  id: number;
+  order_id?: number | null;
+  test_name: string;
+  loinc_code?: string;
+  result_value: string;
+  reference_range?: string;
+  is_abnormal: boolean;
+  is_critical: boolean;
+  doctor_notified: boolean;
+  doctor_name: string | null;
+  patient_alert_id: number | null;
+  performed_at?: string;
+  created_at: string;
+}
+
 export const createLabResult = (
   encounterId: number,
-  data: {
-    test_name: string;
-    loinc_code?: string;
-    result_value: string;
-    reference_range?: string;
-    is_abnormal?: boolean;
-    performed_at?: string;
-  }
-) => api.post(`/encounters/${encounterId}/lab-results/`, data);
+  data: CreateLabResultPayload
+) => api.post<LabResultCreatedResponse>(`/encounters/${encounterId}/lab-results/`, data);
 
 // ── Patient alerts ────────────────────────────────────────────────────────────
 

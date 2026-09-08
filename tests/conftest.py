@@ -65,6 +65,16 @@ def receptionist_a(db, hospital_a):
 
 
 @pytest.fixture
+def hospital_admin_a(db, hospital_a):
+    return _make_user("hosp_admin_a", "hospital_admin", hospital_a)
+
+
+@pytest.fixture
+def hospital_admin_b(db, hospital_b):
+    return _make_user("hosp_admin_b", "hospital_admin", hospital_b)
+
+
+@pytest.fixture
 def sys_admin(db):
     return _make_user("sysadmin", "super_admin")
 
@@ -143,6 +153,18 @@ def client_as_doctor_b(client, doctor_b):
 @pytest.fixture
 def client_as_receptionist(client, receptionist_a):
     client.force_login(receptionist_a)
+    return client
+
+
+@pytest.fixture
+def client_as_hospital_admin_a(client, hospital_admin_a):
+    client.force_login(hospital_admin_a)
+    return client
+
+
+@pytest.fixture
+def client_as_hospital_admin_b(client, hospital_admin_b):
+    client.force_login(hospital_admin_b)
     return client
 
 

@@ -19,9 +19,10 @@ Models with encrypted fields:
                         phone, email, address
   - patients.PatientAlert — label, reaction
   - records.Encounter     — chief_complaint, notes
-  - records.Diagnosis     — description
-  - records.Prescription  — drug_name, dosage, frequency, instructions
-  - records.LabResult     — test_name, result_value
+  - records.Diagnosis     — description, icd_code, snomed_code
+  - records.Prescription  — drug_name, dosage, frequency, instructions, rxnorm_code
+  - records.LabOrder      — test_name, loinc_code, clinical_notes
+  - records.LabResult     — test_name, loinc_code, result_value
 """
 
 from django.core.management.base import BaseCommand
@@ -34,9 +35,10 @@ ENCRYPTED_MODELS = [
     ),
     ("patients.PatientAlert", ["label", "reaction"]),
     ("records.Encounter", ["chief_complaint", "notes"]),
-    ("records.Diagnosis", ["description"]),
-    ("records.Prescription", ["drug_name", "dosage", "frequency", "instructions"]),
-    ("records.LabResult", ["test_name", "result_value"]),
+    ("records.Diagnosis", ["description", "icd_code", "snomed_code"]),
+    ("records.Prescription", ["drug_name", "dosage", "frequency", "instructions", "rxnorm_code"]),
+    ("records.LabOrder", ["test_name", "loinc_code", "clinical_notes"]),
+    ("records.LabResult", ["test_name", "loinc_code", "result_value"]),
 ]
 
 
@@ -70,7 +72,7 @@ class Command(BaseCommand):
         total_errors = 0
 
         if dry_run:
-            self.stdout.write(self.style.WARNING("DRY RUN — no changes will be saved.\n"))
+            self.stdout.write(self.style.WARNING("DRY RUN - no changes will be saved.\n"))
 
         for model_path, field_names in ENCRYPTED_MODELS:
             app_label, model_name = model_path.split(".")
@@ -82,7 +84,7 @@ class Command(BaseCommand):
 
             rows = Model.objects.all()
             count = rows.count()
-            self.stdout.write(f"  {model_path}: {count} rows …")
+            self.stdout.write(f"  {model_path}: {count} rows ...")
             model_errors = 0
 
             for obj in rows.iterator():
@@ -110,7 +112,7 @@ class Command(BaseCommand):
                 if model_errors
                 else self.style.SUCCESS("OK")
             )
-            self.stdout.write(f"    → {status} ({count - model_errors} processed)")
+            self.stdout.write(f"    -> {status} ({count - model_errors} processed)")
 
         action = "Would re-encrypt" if dry_run else "Re-encrypted"
         self.stdout.write(
@@ -122,7 +124,7 @@ class Command(BaseCommand):
             self.stderr.write(
                 self.style.ERROR(
                     f"{total_errors} errors encountered. "
-                    "Check FIELD_ENCRYPTION_KEYS — old key may still be needed."
+                    "Check FIELD_ENCRYPTION_KEYS - old key may still be needed."
                 )
             )
         else:

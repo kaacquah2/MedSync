@@ -109,7 +109,11 @@ export function PatientFormPage() {
     setDupWarning(null);
     try {
       if (isEdit) {
-        await updatePatient(nhid!, values as unknown as Partial<Patient>);
+        const payload: Record<string, unknown> = {
+          ...values,
+          updated_at: existing?.updated_at,
+        };
+        await updatePatient(nhid!, payload as unknown as Partial<Patient>);
         notifications.show({ color: "green", icon: <IconCheck />, message: "Patient record updated." });
         navigate(`/patients/${nhid}`);
       } else {
@@ -125,6 +129,16 @@ export function PatientFormPage() {
         }
       }
     } catch (err) {
+      const axiosErr = err as { response?: { status?: number; data?: { code?: string; error?: string } } };
+      if (axiosErr?.response?.status === 409 || axiosErr?.response?.data?.code === "CONCURRENCY_CONFLICT") {
+        notifications.show({
+          color: "red",
+          title: "Concurrency Conflict",
+          message: axiosErr.response?.data?.error || "Patient demographic record has been modified by another user. Please reload the patient chart before saving.",
+          autoClose: 10000,
+        });
+        return;
+      }
       const norm = normalizeApiError(err);
       if (norm.details) {
         form.setErrors(norm.details);

@@ -82,12 +82,19 @@ class CanPrescribe(BasePermission):
         return request.user.is_authenticated and _has_role(request.user, "doctor")
 
 
+class CanDiagnose(BasePermission):
+    """doctor only (clinical governance: diagnoses are a physician responsibility)."""
+
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and _has_role(request.user, "doctor")
+
+
 class CanCreateLabResult(BasePermission):
-    """doctor, nurse, lab_technician."""
+    """lab_technician only (certified laboratory chain-of-custody)."""
 
     def has_permission(self, request, view):
         return request.user.is_authenticated and _has_role(
-            request.user, "doctor", "nurse", "lab_technician"
+            request.user, "lab_technician"
         )
 
 
@@ -172,12 +179,17 @@ class CanManageAppointments(BasePermission):
 
 
 class CanManageReferrals(BasePermission):
-    """doctor, hospital_admin, super_admin."""
+    """
+    Reads: doctor, hospital_admin, super_admin.
+    Writes / Status changes: doctor only (inter-hospital clinical transfer of care).
+    """
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and _has_role(
-            request.user, "doctor", "hospital_admin", "super_admin"
-        )
+        if not request.user.is_authenticated:
+            return False
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            return _has_role(request.user, "doctor", "hospital_admin", "super_admin")
+        return _has_role(request.user, "doctor")
 
 
 class CanManageWards(BasePermission):

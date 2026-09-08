@@ -177,7 +177,10 @@ class LogoutView(APIView):
         # Note: the user_logged_out signal (audit/signals.py) writes LOGOUT
         # automatically when logout() is called. Do not call log_action here.
         logout(request)
-        return Response({"detail": "Logged out successfully."})
+        response = Response({"detail": "Logged out successfully."})
+        response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0, private"
+        response["Clear-Site-Data"] = '"cache", "storage"'
+        return response
 
 
 class PasswordChangeView(APIView):

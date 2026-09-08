@@ -113,6 +113,9 @@ class PatientDocumentSerializer(serializers.ModelSerializer):
     uploaded_by_name = serializers.SerializerMethodField()
     download_url = serializers.SerializerMethodField()
     file_size_kb = serializers.SerializerMethodField()
+    confidentiality_display = serializers.CharField(
+        source="get_confidentiality_display", read_only=True
+    )
 
     class Meta:
         model = PatientDocument
@@ -123,6 +126,8 @@ class PatientDocumentSerializer(serializers.ModelSerializer):
             "file_size",
             "file_size_kb",
             "description",
+            "confidentiality",
+            "confidentiality_display",
             "uploaded_by",
             "uploaded_by_name",
             "download_url",
@@ -254,6 +259,10 @@ class PatientDocumentListUploadView(APIView):
         encrypted_bytes = encrypt_bytes(raw_bytes)
         encrypted_file = ContentFile(encrypted_bytes, name=safe_name)
 
+        confidentiality = request.data.get("confidentiality", "normal")
+        if confidentiality not in [c.value for c in PatientDocument.ConfidentialityLevel]:
+            confidentiality = PatientDocument.ConfidentialityLevel.NORMAL
+
         doc = PatientDocument.objects.create(
             patient=patient,
             uploaded_by=request.user,
@@ -262,6 +271,7 @@ class PatientDocumentListUploadView(APIView):
             file_type=sniffed_mime,
             file_size=len(raw_bytes),  # original unencrypted file size
             description=(request.data.get("description") or "")[:255],
+            confidentiality=confidentiality,
         )
         log_action(
             request,

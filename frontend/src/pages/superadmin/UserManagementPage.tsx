@@ -467,7 +467,7 @@ export function UserManagementPage() {
             </Text>
             <PasswordInput
               label="New temporary password"
-              placeholder="Minimum 8 characters"
+              placeholder="Minimum 12 characters"
               required
               {...resetForm.getInputProps("password")}
             />

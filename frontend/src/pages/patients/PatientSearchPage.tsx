@@ -21,8 +21,8 @@ import { DataStateWrapper } from "@/components/DataStateWrapper";
 import { queryKeys } from "@/api/queryKeys";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
-import { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { searchPatients } from "@/api/endpoints";
 import { useAuth } from "@/auth/AuthProvider";
 
@@ -32,13 +32,37 @@ const SEX_LABEL: Record<string, string> = { M: "Male", F: "Female", O: "Other" }
 const PAGE_SIZE = 20;
 
 export function PatientSearchPage() {
-  const [params, setParams] = useSearchParams();
-  const { user }             = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [params] = useSearchParams();
+  const { user } = useAuth();
 
-  const [q, setQ]         = useState(params.get("q") ?? "");
-  const [page, setPage]   = useState(Number(params.get("page") ?? 1));
+  // Read initial query from navigation state or URL param (which we sanitize immediately)
+  const queryParam = params.get("q");
+  const navStateQ = (location.state as { q?: string } | null)?.q;
+  const initialQ = navStateQ ?? queryParam ?? "";
 
-  const activeQ = params.get("q") ?? "";
+  const [q, setQ] = useState(initialQ);
+  const [activeQ, setActiveQ] = useState(initialQ);
+  const [page, setPage] = useState(1);
+
+  // If a sensitive search query was passed in the URL query string, sanitize the URL immediately
+  // to avoid leaving patient identifiers in the address bar / browser history
+  useEffect(() => {
+    if (queryParam) {
+      navigate("/patients", { replace: true, state: { q: queryParam } });
+    }
+  }, [queryParam, navigate]);
+
+  // Synchronize when global navbar search pushes new search state to /patients
+  useEffect(() => {
+    const navQ = (location.state as { q?: string } | null)?.q;
+    if (navQ !== undefined && navQ !== activeQ) {
+      setQ(navQ);
+      setActiveQ(navQ);
+      setPage(1);
+    }
+  }, [location.state, activeQ]);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.patients(user?.hospital?.id, user?.id, activeQ, page),
@@ -49,8 +73,14 @@ export function PatientSearchPage() {
 
   function doSearch(e: React.FormEvent) {
     e.preventDefault();
+    const cleanQ = q.trim();
+    if (/^NHID-[A-F0-9]{8,16}$/i.test(cleanQ)) {
+      // Direct route navigation to avoid leaving sensitive patient NHIDs in URL query strings
+      navigate(`/patients/${cleanQ.toUpperCase()}`);
+      return;
+    }
     setPage(1);
-    setParams({ q: q.trim(), page: "1" });
+    setActiveQ(cleanQ);
   }
 
   const canRegister = ["doctor", "nurse", "receptionist", "hospital_admin", "super_admin"].includes(
@@ -174,7 +204,6 @@ export function PatientSearchPage() {
                 value={page}
                 onChange={(p) => {
                   setPage(p);
-                  setParams({ q: activeQ, page: String(p) });
                 }}
               />
             )}

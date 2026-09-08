@@ -18,6 +18,7 @@ import {
   ThemeIcon,
   Title,
   Alert,
+  Modal,
 } from "@mantine/core";
 import { useForm } from "@mantine/form";
 import { notifications } from "@mantine/notifications";
@@ -33,6 +34,8 @@ import dayjs from "dayjs";
 import { useState, useMemo } from "react";
 import { createPrescription, fetchPatientEncounters, searchPatients, fetchPatient } from "@/api/endpoints";
 import { useAuth } from "@/auth/AuthProvider";
+import { checkAllergyConflicts } from "@/utils/allergyChecker";
+import { useIsPrinting } from "@/utils/useIsPrinting";
 
 // ── Ghana Essential Medicines List (common subset for autocomplete) ────────────
 const GHANA_EML_DRUGS = [
@@ -129,6 +132,7 @@ export function PrescriptionsPage() {
   const [patientSearch, setPatientSearch] = useState("");
   const [selectedNhid, setSelectedNhid] = useState<string | null>(null);
   const [selectedEncounterId, setSelectedEncounterId] = useState<number | null>(null);
+  const { isPrinting, triggerPrint } = useIsPrinting();
 
   // Patient search
   const { data: searchData, isLoading: searching } = useQuery({
@@ -187,32 +191,19 @@ export function PrescriptionsPage() {
     return Math.ceil(freqObj.multiplier * Number(form.values.duration_days));
   }, [form.values.frequency, form.values.duration_days]);
 
-  // 2. Allergy warning banner trigger
-  const allergyWarning = useMemo(() => {
-    if (!activePatient || !form.values.drug_name) return null;
-    const nameLower = form.values.drug_name.toLowerCase();
-    
-    // Check if patient has penicillin/amoxicillin allergy
-    const activeAllergies = activePatient.alerts?.filter((a) => a.is_active && a.kind === "ALLERGY") || [];
-    
-    const hasPenicillinAllergy = activeAllergies.some((a) => 
-      a.label.toLowerCase().includes("peni") || a.label.toLowerCase().includes("amox")
-    );
-
-    const isPrescribingPenicillin = nameLower.includes("amox") || nameLower.includes("peni") || nameLower.includes("clav") || nameLower.includes("ampi");
-
-    if (hasPenicillinAllergy && isPrescribingPenicillin) {
-      const allergyLabel = activeAllergies.find((a) => a.label.toLowerCase().includes("peni") || a.label.toLowerCase().includes("amox"))?.label || "Penicillin";
-      return {
-        patient: activePatient.full_name,
-        allergy: allergyLabel,
-      };
-    }
-    return null;
+  // 2. Allergy contraindication checker
+  const allergyConflicts = useMemo(() => {
+    if (!activePatient || !form.values.drug_name) return [];
+    return checkAllergyConflicts(activePatient.alerts, form.values.drug_name);
   }, [activePatient, form.values.drug_name]);
 
+  const [overrideModalOpen, setOverrideModalOpen] = useState(false);
+  const [overrideReason, setOverrideReason] = useState("");
+  const [overrideError, setOverrideError] = useState("");
+  const [pendingValues, setPendingValues] = useState<typeof form.values | null>(null);
+
   const mutation = useMutation({
-    mutationFn: (values: typeof form.values) => {
+    mutationFn: ({ values, overrideReason }: { values: typeof form.values; overrideReason?: string }) => {
       const encId = selectedEncounterId ?? encounters?.[0]?.id;
       if (!encId) throw new Error("No encounter selected");
       return createPrescription(encId, {
@@ -221,20 +212,51 @@ export function PrescriptionsPage() {
         frequency:    `${FREQUENCIES.find(f=>f.value===values.frequency)?.label ?? values.frequency}${values.duration_days ? ` for ${values.duration_days} days` : ""}`,
         instructions: `${values.instructions || ""}${totalQuantity ? ` (Total Quantity: ${totalQuantity})` : ""}`,
         rxnorm_code:  values.rxnorm_code || undefined,
+        allergy_override_reason: overrideReason || undefined,
       });
     },
     onSuccess: () => {
       notifications.show({ color: "green", icon: <IconCheck />, message: "Prescription saved successfully." });
       form.reset();
+      setOverrideModalOpen(false);
+      setOverrideReason("");
+      setOverrideError("");
+      setPendingValues(null);
       qc.invalidateQueries({ queryKey: ["rx-encounters", selectedNhid] });
     },
     onError: (e: unknown) => {
-      notifications.show({
-        color: "red",
-        message: formatApiError(e, "Failed to save prescription."),
-      });
+      const respData = (e as { response?: { data?: { error?: string; detail?: string } } })?.response?.data;
+      if (respData?.error === "ALLERGY_CONFLICT") {
+        setOverrideError(respData.detail || "Documented allergy conflict. Written clinical override justification is required.");
+        setOverrideModalOpen(true);
+      } else {
+        notifications.show({
+          color: "red",
+          message: formatApiError(e, "Failed to save prescription."),
+        });
+      }
     },
   });
+
+  const handleFormSubmit = (v: typeof form.values) => {
+    if (allergyConflicts.length > 0) {
+      setPendingValues(v);
+      setOverrideReason("");
+      setOverrideError("");
+      setOverrideModalOpen(true);
+      return;
+    }
+    mutation.mutate({ values: v });
+  };
+
+  const handleConfirmOverride = () => {
+    if (!overrideReason.trim() || overrideReason.trim().length < 10) {
+      setOverrideError("Mandatory clinical override justification must be at least 10 characters.");
+      return;
+    }
+    if (!pendingValues) return;
+    mutation.mutate({ values: pendingValues, overrideReason: overrideReason.trim() });
+  };
 
   return (
     <Stack gap="lg">
@@ -254,7 +276,7 @@ export function PrescriptionsPage() {
             leftSection={<IconPrinter size={16} />}
             variant="outline"
             color="violet"
-            onClick={() => window.print()}
+            onClick={triggerPrint}
           >
             Print Prescription
           </Button>
@@ -296,19 +318,30 @@ export function PrescriptionsPage() {
           <Divider mb="md" />
 
           {/* Allergy warning banner */}
-          {allergyWarning && (
+          {allergyConflicts.length > 0 && (
             <Alert
               icon={<IconAlertTriangle size={18} />}
               color="red"
-              title="Allergy Warning!"
+              title="Contraindicated Allergy Alert"
               mb="md"
             >
-              <strong>{allergyWarning.patient}</strong> has a documented allergy to <strong>{allergyWarning.allergy}</strong>. Prescribing penicillin-based drugs may cause a severe reaction.
+              <Stack gap={4}>
+                {allergyConflicts.map((c) => (
+                  <Text size="sm" key={c.allergyId}>
+                    <strong>{activePatient?.full_name}</strong> has a documented allergy to{" "}
+                    <strong>{c.allergyLabel}</strong> ({c.severity}). {c.message}
+                    {c.reaction ? ` Recorded reaction: ${c.reaction}.` : ""}
+                  </Text>
+                ))}
+                <Text size="xs" fw={700} mt={4} c="red.9">
+                  Submission is blocked: an explicit clinical override justification is required to prescribe this medication.
+                </Text>
+              </Stack>
             </Alert>
           )}
 
           {/* Step 2: Drug */}
-          <form onSubmit={form.onSubmit((v) => mutation.mutate(v))}>
+          <form onSubmit={form.onSubmit(handleFormSubmit)}>
             <Stack gap="sm">
               <Autocomplete
                 label="Drug name"
@@ -377,12 +410,12 @@ export function PrescriptionsPage() {
                 </Button>
                 <Button
                   type="submit"
-                  color="violet"
-                  leftSection={<IconPill size={16} />}
+                  color={allergyConflicts.length > 0 ? "red" : "violet"}
+                  leftSection={allergyConflicts.length > 0 ? <IconAlertTriangle size={16} /> : <IconPill size={16} />}
                   loading={mutation.isPending}
                   disabled={!selectedNhid}
                 >
-                  Save Prescription
+                  {allergyConflicts.length > 0 ? "Review Allergy Override & Prescribe" : "Save Prescription"}
                 </Button>
               </Group>
             </Stack>
@@ -410,8 +443,8 @@ export function PrescriptionsPage() {
       </SimpleGrid>
 
       {/* ── Print Friendly Output ─────────────────────────────────────────── */}
-      {selectedNhid && activePatient && (
-        <Card className="only-print" p="xl" style={{ border: "2px solid #ccc", minHeight: "600px", display: "none" }}>
+      {isPrinting && selectedNhid && activePatient && (
+        <Card className="print-only" p="xl" style={{ border: "2px solid #ccc", minHeight: "600px" }}>
           <Stack gap="xl">
             {/* Hospital Header */}
             <Group justify="space-between">
@@ -492,6 +525,71 @@ export function PrescriptionsPage() {
           </Stack>
         </Card>
       )}
+
+      {/* Clinical Allergy Override Modal */}
+      <Modal
+        opened={overrideModalOpen}
+        onClose={() => setOverrideModalOpen(false)}
+        title={
+          <Group gap="xs">
+            <ThemeIcon color="red" variant="light" size="md">
+              <IconAlertTriangle size={18} />
+            </ThemeIcon>
+            <Text fw={700} c="red.8">Clinical Allergy Override Required</Text>
+          </Group>
+        }
+        centered
+        size="lg"
+      >
+        <Stack gap="md">
+          <Alert color="red" icon={<IconAlertTriangle size={18} />} title="Contraindicated Medication Warning">
+            <Text size="sm">
+              You are attempting to prescribe <strong>{pendingValues?.drug_name || form.values.drug_name}</strong> to{" "}
+              <strong>{activePatient?.full_name}</strong> ({activePatient?.universal_id}), who has active documented allergies:
+            </Text>
+            <Stack gap={4} mt="xs">
+              {allergyConflicts.map((c) => (
+                <Text size="xs" key={c.allergyId}>
+                  • <strong>{c.allergyLabel}</strong> (Severity: <strong>{c.severity}</strong>)
+                  {c.reaction ? ` — Reaction: ${c.reaction}` : ""}
+                </Text>
+              ))}
+            </Stack>
+          </Alert>
+
+          <Text size="xs" c="dimmed">
+            Clinical safety protocol requires mandatory written clinical justification before overriding a documented allergy.
+            This override, along with your clinical rationale, will be permanently recorded in the immutable audit log under your clinician credentials.
+          </Text>
+
+          <Textarea
+            label="Clinical Justification for Override"
+            placeholder="e.g. Desensitization protocol completed under immunology guidance; ICU monitored; therapeutic benefits outweigh risks."
+            minRows={3}
+            required
+            value={overrideReason}
+            onChange={(e) => {
+              setOverrideReason(e.currentTarget.value);
+              if (overrideError) setOverrideError("");
+            }}
+            error={overrideError}
+          />
+
+          <Group justify="flex-end" mt="xs">
+            <Button variant="subtle" color="gray" onClick={() => setOverrideModalOpen(false)}>
+              Cancel / Change Drug
+            </Button>
+            <Button
+              color="red"
+              leftSection={<IconAlertTriangle size={16} />}
+              loading={mutation.isPending}
+              onClick={handleConfirmOverride}
+            >
+              Confirm Override & Prescribe
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }

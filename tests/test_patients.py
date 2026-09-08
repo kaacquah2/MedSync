@@ -9,6 +9,10 @@ Verifies:
   - Cross-hospital patient lookup succeeds for any authenticated user
 """
 
+from unittest.mock import patch
+from django.db import IntegrityError
+import pytest
+
 from core.blind_index import make_blind_index
 from patients.models import Patient, generate_nhid
 
@@ -21,7 +25,7 @@ class TestNHID:
             date_of_birth="2000-01-01",
         )
         assert p.universal_id.startswith("NHID-")
-        assert len(p.universal_id) == 13  # "NHID-" + 8 hex chars
+        assert len(p.universal_id) == 21  # "NHID-" (5) + 16 hex chars
 
     def test_nhid_unique(self, db):
         ids = {generate_nhid() for _ in range(100)}
@@ -29,6 +33,55 @@ class TestNHID:
 
     def test_two_patients_different_nhid(self, db, patient_a, patient_b):
         assert patient_a.universal_id != patient_b.universal_id
+
+    def test_nhid_collision_retry(self, db):
+        p1 = Patient.objects.create(
+            first_name="Patient",
+            last_name="One",
+            date_of_birth="1990-01-01",
+        )
+        collided_id = p1.universal_id
+
+        with patch("patients.models.generate_nhid", wraps=generate_nhid) as spy_generate:
+            p2 = Patient(
+                first_name="Patient",
+                last_name="Two",
+                date_of_birth="1995-05-05",
+                universal_id=collided_id,
+            )
+            # Initially p2 has collided_id, save() will catch the collision and regenerate
+            p2.save()
+
+            assert p2.universal_id != collided_id
+            assert p2.universal_id.startswith("NHID-")
+            assert len(p2.universal_id) == 21
+            assert spy_generate.call_count >= 1
+
+    def test_nhid_collision_exhaustion_raises_integrity_error(self, db):
+        p1 = Patient.objects.create(
+            first_name="Patient",
+            last_name="One",
+            date_of_birth="1990-01-01",
+        )
+        collided_id = p1.universal_id
+
+        with patch("patients.models.generate_nhid", return_value=collided_id):
+            p2 = Patient(
+                first_name="Patient",
+                last_name="Two",
+                date_of_birth="1995-05-05",
+                universal_id=collided_id,
+            )
+            with pytest.raises(IntegrityError):
+                p2.save()
+
+    def test_existing_patient_update_does_not_change_nhid(self, db, patient_a):
+        original_id = patient_a.universal_id
+        patient_a.first_name = "UpdatedName"
+        patient_a.save()
+        patient_a.refresh_from_db()
+        assert patient_a.universal_id == original_id
+
 
 
 class TestBlindIndexOnPatient:
@@ -147,3 +200,75 @@ class TestPatientDetailView:
         resp = client_as_doctor_b.get(f"/api/patients/{patient_a.universal_id}/")
         assert resp.status_code == 200
         assert resp.json()["is_cross_hospital"] is True
+
+    def test_get_patient_returns_etag_header(self, client_as_doctor_a, patient_a):
+        resp = client_as_doctor_a.get(f"/api/patients/{patient_a.universal_id}/")
+        assert resp.status_code == 200
+        assert "ETag" in resp.headers
+        assert resp.headers["ETag"].strip('"') == patient_a.updated_at.isoformat()
+
+    def test_patch_patient_without_concurrency_token_succeeds(self, client_as_doctor_a, patient_a):
+        resp = client_as_doctor_a.patch(
+            f"/api/patients/{patient_a.universal_id}/",
+            {"phone": "+233200000001"},
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        patient_a.refresh_from_db()
+        assert patient_a.phone == "+233200000001"
+
+    def test_patch_patient_with_matching_updated_at_succeeds(self, client_as_doctor_a, patient_a):
+        current_updated = patient_a.updated_at.isoformat()
+        resp = client_as_doctor_a.patch(
+            f"/api/patients/{patient_a.universal_id}/",
+            {
+                "phone": "+233200000002",
+                "updated_at": current_updated,
+            },
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        patient_a.refresh_from_db()
+        assert patient_a.phone == "+233200000002"
+
+    def test_patch_patient_with_matching_if_match_header_succeeds(self, client_as_doctor_a, patient_a):
+        current_updated = patient_a.updated_at.isoformat()
+        resp = client_as_doctor_a.patch(
+            f"/api/patients/{patient_a.universal_id}/",
+            {"phone": "+233200000003"},
+            content_type="application/json",
+            HTTP_IF_MATCH=f'"{current_updated}"',
+        )
+        assert resp.status_code == 200
+        patient_a.refresh_from_db()
+        assert patient_a.phone == "+233200000003"
+
+    def test_patch_patient_with_stale_updated_at_returns_409_conflict(self, client_as_doctor_a, patient_a):
+        stale_updated = "2020-01-01T00:00:00Z"
+        resp = client_as_doctor_a.patch(
+            f"/api/patients/{patient_a.universal_id}/",
+            {
+                "phone": "+233200000099",
+                "updated_at": stale_updated,
+            },
+            content_type="application/json",
+        )
+        assert resp.status_code == 409
+        data = resp.json()
+        assert data.get("code") == "CONCURRENCY_CONFLICT"
+        assert "modified by another user" in data.get("error")
+        # Verify no change persisted
+        patient_a.refresh_from_db()
+        assert patient_a.phone != "+233200000099"
+
+    def test_patch_patient_with_stale_if_match_returns_409_conflict(self, client_as_doctor_a, patient_a):
+        resp = client_as_doctor_a.patch(
+            f"/api/patients/{patient_a.universal_id}/",
+            {"phone": "+233200000099"},
+            content_type="application/json",
+            HTTP_IF_MATCH='"2020-01-01T00:00:00Z"',
+        )
+        assert resp.status_code == 409
+        assert resp.json().get("code") == "CONCURRENCY_CONFLICT"
+        patient_a.refresh_from_db()
+        assert patient_a.phone != "+233200000099"

@@ -74,6 +74,7 @@ class AuditLog(models.Model):
         # Patient alerts / allergies
         CREATE_ALERT = "CREATE_ALERT", "Alert/Allergy Created"
         DEACTIVATE_ALERT = "DEACTIVATE_ALERT", "Alert/Allergy Deactivated"
+        VIEW_ALERTS = "VIEW_ALERTS", "View Alerts Feed"
         # Inter-hospital access control
         BREAK_GLASS = "BREAK_GLASS", "Break-Glass Override"
         TREATMENT_REL_STARTED = "TREATMENT_REL_STARTED", "Treatment Relationship Started"
@@ -91,18 +92,30 @@ class AuditLog(models.Model):
         # Lab orders
         CREATE_LAB_ORDER = "CREATE_LAB_ORDER", "Lab Order Created"
         UPDATE_LAB_ORDER = "UPDATE_LAB_ORDER", "Lab Order Updated"
+        VIEW_LAB_ORDERS = "VIEW_LAB_ORDERS", "View Patient Lab Orders"
+        VIEW_LAB_ORDER = "VIEW_LAB_ORDER", "View Lab Order Detail"
+        VIEW_LAB_WORKLIST = "VIEW_LAB_WORKLIST", "View Lab Orders Worklist"
         # Medication administration
         ADMINISTER_MEDICATION = "ADMINISTER_MEDICATION", "Medication Administered"
+        VIEW_MAR = "VIEW_MAR", "View Medication Administration Record"
         # Appointments
         CREATE_APPOINTMENT = "CREATE_APPOINTMENT", "Appointment Created"
         UPDATE_APPOINTMENT = "UPDATE_APPOINTMENT", "Appointment Status Updated"
+        VIEW_APPOINTMENTS = "VIEW_APPOINTMENTS", "View Appointments List"
+        VIEW_APPOINTMENT = "VIEW_APPOINTMENT", "View Appointment Detail"
         # Referrals
         CREATE_REFERRAL = "CREATE_REFERRAL", "Referral Created"
         UPDATE_REFERRAL = "UPDATE_REFERRAL", "Referral Status Updated"
+        VIEW_REFERRALS = "VIEW_REFERRALS", "View Referrals List"
+        # Wards & rosters
+        VIEW_WARDS = "VIEW_WARDS", "View Ward Roster List"
+        VIEW_WARD = "VIEW_WARD", "View Ward Roster Detail"
         # Shift / handover
         START_SHIFT = "START_SHIFT", "Shift Started"
         END_SHIFT = "END_SHIFT", "Shift Ended"
         CREATE_HANDOVER = "CREATE_HANDOVER", "Handover Note Created"
+        ACKNOWLEDGE_HANDOVER = "ACKNOWLEDGE_HANDOVER", "Handover Acknowledged"
+        VIEW_HANDOVERS = "VIEW_HANDOVERS", "View Handovers List"
         # AI query
         AI_QUERY = "AI_QUERY", "AI Patient Query"
         # Export
@@ -117,7 +130,6 @@ class AuditLog(models.Model):
         DOWNLOAD_DOCUMENT = "DOWNLOAD_DOCUMENT", "Document Downloaded"
         DELETE_DOCUMENT = "DELETE_DOCUMENT", "Document Deleted"
         LIST_DOCUMENTS = "LIST_DOCUMENTS", "Documents Listed"
-        ACKNOWLEDGE_HANDOVER = "ACKNOWLEDGE_HANDOVER", "Handover Acknowledged"
 
     # Actor (nullable so we can log failed / pre-auth attempts)
     actor = models.ForeignKey(

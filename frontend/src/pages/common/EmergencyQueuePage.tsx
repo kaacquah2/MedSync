@@ -1,4 +1,5 @@
 import {
+  Alert,
   Anchor,
   Badge,
   Button,
@@ -19,6 +20,7 @@ import { useForm } from "@mantine/form";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
+  IconAlertTriangle,
   IconCheck,
   IconClock,
   IconPlus,
@@ -39,17 +41,18 @@ import {
   searchPatients,
 } from "@/api/endpoints";
 import { useAuth } from "@/auth/AuthProvider";
-import type { Appointment } from "@/types";
+import type { Appointment, TriageAcuity } from "@/types";
 
 dayjs.extend(relativeTime);
 
-type TriageLevel = "RED" | "ORANGE" | "YELLOW" | "GREEN";
+export type TriageDisplayLevel = TriageAcuity | "UNTRIAGED";
 
-const TRIAGE_COLORS: Record<TriageLevel, string> = {
+export const TRIAGE_COLORS: Record<TriageDisplayLevel, string> = {
   RED: "red",
   ORANGE: "orange",
   YELLOW: "yellow",
   GREEN: "green",
+  UNTRIAGED: "red",
 };
 
 interface ApiErrorResponse {
@@ -60,27 +63,57 @@ interface ApiErrorResponse {
   };
 }
 
-interface TriageInfo {
-  level: TriageLevel;
+export interface TriageInfo {
+  level: TriageDisplayLevel;
   notes: string;
+  isUntriaged: boolean;
 }
 
-function parseTriage(appt: Appointment): TriageInfo {
+export function parseTriage(appt: Appointment): TriageInfo {
+  // 1. Dedicated first-class backend enum field triage_acuity
+  if (appt.triage_acuity && ["RED", "ORANGE", "YELLOW", "GREEN"].includes(appt.triage_acuity)) {
+    const rawNotes = appt.notes || appt.reason || "";
+    const cleanNotes = rawNotes.replace(/^\[Triage:\s*(?:RED|ORANGE|YELLOW|GREEN)\]\s*/i, "").trim();
+    return {
+      level: appt.triage_acuity,
+      notes: cleanNotes || rawNotes,
+      isUntriaged: false,
+    };
+  }
+
+  if (appt.triage_level && ["RED", "ORANGE", "YELLOW", "GREEN"].includes(appt.triage_level)) {
+    const rawNotes = appt.notes || appt.reason || "";
+    const cleanNotes = rawNotes.replace(/^\[Triage:\s*(?:RED|ORANGE|YELLOW|GREEN)\]\s*/i, "").trim();
+    return {
+      level: appt.triage_level,
+      notes: cleanNotes || rawNotes,
+      isUntriaged: false,
+    };
+  }
+
+  // 2. Legacy fallback for older unmigrated appointments
   const text = appt.notes || appt.reason || "";
   const match = text.match(/^\[Triage:\s*(RED|ORANGE|YELLOW|GREEN)\]\s*(.*)$/i);
   if (match) {
     return {
-      level: match[1].toUpperCase() as TriageLevel,
+      level: match[1].toUpperCase() as TriageAcuity,
       notes: match[2].trim(),
+      isUntriaged: false,
     };
   }
+
+  // 3. CLINICAL SAFETY GUARD:
+  // In an emergency room, an unclassified emergency arrival must NEVER be silently downgraded to GREEN.
+  // Silently defaulting to GREEN risks fatal delay for dying patients.
+  // Treat missing/corrupted triage classifications as UNTRIAGED with top clinical evaluation priority.
   return {
-    level: "GREEN",
+    level: "UNTRIAGED",
     notes: text,
+    isUntriaged: true,
   };
 }
 
-function formatTriage(level: TriageLevel, notes: string): string {
+export function formatTriage(level: TriageAcuity, notes: string): string {
   return `[Triage: ${level}] ${notes.trim()}`;
 }
 
@@ -122,7 +155,7 @@ export function EmergencyQueuePage() {
   const form = useForm({
     initialValues: {
       patient_nhid: "",
-      triage_level: "YELLOW" as TriageLevel,
+      triage_level: "YELLOW" as TriageAcuity,
       triage_notes: "",
     },
     validate: {
@@ -139,7 +172,9 @@ export function EmergencyQueuePage() {
         appointment_type: "emergency",
         status: "checked_in",
         scheduled_for: new Date().toISOString(),
-        reason: triageStr,
+        triage_acuity: values.triage_level,
+        triage_level: values.triage_level,
+        reason: values.triage_notes.trim(),
         notes: triageStr,
       });
     },
@@ -188,7 +223,18 @@ export function EmergencyQueuePage() {
   });
 
   const sortedQueue = [...allEmergency].sort((a, b) => {
-    const levelScore = { RED: 4, ORANGE: 3, YELLOW: 2, GREEN: 1 };
+    // UNTRIAGED = 5 (Immediate mandatory evaluation)
+    // RED = 4 (Resuscitation)
+    // ORANGE = 3 (Emergent)
+    // YELLOW = 2 (Urgent)
+    // GREEN = 1 (Non-urgent)
+    const levelScore: Record<TriageDisplayLevel, number> = {
+      UNTRIAGED: 5,
+      RED: 4,
+      ORANGE: 3,
+      YELLOW: 2,
+      GREEN: 1,
+    };
     const aTriage = parseTriage(a);
     const bTriage = parseTriage(b);
     const scoreDiff = levelScore[bTriage.level] - levelScore[aTriage.level];
@@ -196,6 +242,7 @@ export function EmergencyQueuePage() {
     return dayjs(a.scheduled_for).diff(dayjs(b.scheduled_for));
   });
 
+  const untriagedCount = allEmergency.filter((a) => parseTriage(a).isUntriaged).length;
   const redCount = allEmergency.filter((a) => parseTriage(a).level === "RED").length;
   const orangeCount = allEmergency.filter((a) => parseTriage(a).level === "ORANGE").length;
   const activeCount = allEmergency.filter((a) => a.status === "checked_in").length;
@@ -227,7 +274,25 @@ export function EmergencyQueuePage() {
         </Button>
       </PageHeader>
 
-      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
+      {untriagedCount > 0 && (
+        <Alert
+          color="red"
+          icon={<IconAlertTriangle size={20} />}
+          title="Clinical Safety Warning — Untriaged Emergency Patients"
+          radius="md"
+        >
+          {untriagedCount} patient(s) in the emergency queue have missing or unverified triage classifications.
+          Emergency clinical protocol requires immediate assessment by a triage officer to prevent adverse outcomes.
+        </Alert>
+      )}
+
+      <SimpleGrid cols={{ base: 1, sm: untriagedCount > 0 ? 4 : 3 }} spacing="md">
+        {untriagedCount > 0 && (
+          <Card withBorder radius="md" p="md" style={{ borderLeft: "4px solid var(--mantine-color-red-9)", background: "var(--mantine-color-red-0)" }}>
+            <Text size="xs" tt="uppercase" fw={700} c="red">Untriaged / Immediate</Text>
+            <Text size="xl" fw={800} c="red">{untriagedCount} waiting</Text>
+          </Card>
+        )}
         <Card withBorder radius="md" p="md" style={{ borderLeft: "4px solid var(--mantine-color-red-6)" }}>
           <Text size="xs" tt="uppercase" fw={700} c="dimmed">Critical (RED)</Text>
           <Text size="xl" fw={800} c="red">{redCount} waiting</Text>
@@ -280,11 +345,34 @@ export function EmergencyQueuePage() {
                   const isClinical = user?.role === "doctor" || user?.role === "nurse";
 
                   return (
-                    <Table.Tr key={appt.id} bg={triage.level === "RED" ? "var(--bg-red)" : triage.level === "ORANGE" ? "var(--bg-amber)" : undefined}>
+                    <Table.Tr
+                      key={appt.id}
+                      bg={
+                        triage.isUntriaged
+                          ? "var(--bg-red)"
+                          : triage.level === "RED"
+                          ? "var(--bg-red)"
+                          : triage.level === "ORANGE"
+                          ? "var(--bg-amber)"
+                          : undefined
+                      }
+                    >
                       <Table.Td>
-                        <Badge color={color} variant="filled" fullWidth size="md">
-                          {triage.level}
-                        </Badge>
+                        {triage.isUntriaged ? (
+                          <Badge
+                            color="red"
+                            variant="filled"
+                            fullWidth
+                            size="md"
+                            leftSection={<IconAlertTriangle size={12} />}
+                          >
+                            UNTRIAGED
+                          </Badge>
+                        ) : (
+                          <Badge color={color} variant="filled" fullWidth size="md">
+                            {triage.level}
+                          </Badge>
+                        )}
                       </Table.Td>
                       <Table.Td>
                         <Anchor component={Link} to={`/patients/${appt.patient_nhid}`} fw={600}>

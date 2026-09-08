@@ -110,7 +110,8 @@ FIELD_ENCRYPTION_KEYS=new_key_string
 - **RPO:** < 1 hour data loss
 
 ### Backup
-- **Database:** Neon provides automated daily encrypted snapshots and WAL archiving. For self-hosted Postgres: configure `pg_dump` / `pg_basebackup` + WAL archiving to a separate storage bucket.
+- **Database (Production):** Neon provides automated daily encrypted snapshots and WAL archiving. For self-hosted Postgres: configure `pg_dump` / `pg_basebackup` + WAL archiving to a separate storage bucket.
+- **Prototype / Local Backups:** Use the provided backup script `scripts/backup.sh` or Django command `python manage.py export_backup` to create a timestamped archive of the database and `media/patient_documents/` under `backups/`.
 - **Encryption keys:** stored separately from the database backup (see §2 — key escrow). Backups are useless without the key.
 
 ### Restore procedure
@@ -218,3 +219,25 @@ python manage.py reindex_blind
 
 - **Partial-name search** performs a Python-side decrypt scan over all patients (O(n)). On a large registry this is slow. Production should replace this with a dedicated search index. The patient search endpoint is rate-limited to 30 queries/60 s per user as a mitigation.
 - **FIELD_ENCRYPTION_KEYS rotation** re-encrypts every encrypted field; do not run during peak hours on a large dataset. Run with `--dry-run` first to estimate scope.
+
+---
+
+## 8. Pre-Submission & Open-Source Repository Hygiene Checklist
+
+Prior to submitting the codebase alongside an academic dissertation, project report, or publishing the repository publicly:
+
+1. **Verify Ignored Secret Files**:
+   Run `git status --ignored` to verify that `.env`, `.env.local`, and local databases (`dev.db`, `db.sqlite3`) remain strictly untracked. Ensure no local secrets are staged:
+   ```bash
+   git status
+   ```
+2. **Rotate Development & Demo Keys**:
+   If repository history has ever been pushed to a remote server with development keys:
+   - Rotate `SECRET_KEY`, `FIELD_ENCRYPTION_KEY`, and `BLIND_INDEX_KEY` in staging/production environments.
+   - For demo servers, supply a custom password via `DEMO_ACCOUNTS_PASSWORD`:
+     ```bash
+     export DEMO_ACCOUNTS_PASSWORD="AStrongCustomDemoPass!2026"
+     python manage.py seed_demo
+     ```
+3. **Audit Static Build Secrets**:
+   Confirm that the `Dockerfile` uses placeholder keys only during `collectstatic` (`FIELD_ENCRYPTION_KEY=YWFh...`) and that actual keys are injected exclusively at runtime via environment variables or secret vaults (AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault).

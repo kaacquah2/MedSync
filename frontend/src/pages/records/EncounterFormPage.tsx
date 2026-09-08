@@ -16,30 +16,11 @@ import { IconCheck, IconStethoscope } from "@tabler/icons-react";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createEncounter, createDiagnosis } from "@/api/endpoints";
+import { formatApiError } from "../../utils/formatApiError";
+import { ConfidentialityLevel } from "@/types";
+import { useAuth } from "@/auth/AuthProvider";
 
-function formatApiError(err: unknown, fallback: string): string {
-  const data = (err as { response?: { data?: unknown } })?.response?.data;
-  if (!data) return fallback;
-  if (typeof data === "string") return data;
-  if (typeof data === "object") {
-    if ("error" in data && typeof (data as { error: string }).error === "string") {
-      return (data as { error: string }).error;
-    }
-    if ("detail" in data && typeof (data as { detail: string }).detail === "string") {
-      return (data as { detail: string }).detail;
-    }
-    const messages: string[] = [];
-    for (const [key, val] of Object.entries(data as Record<string, unknown>)) {
-      if (Array.isArray(val)) {
-        messages.push(`${key}: ${val.join(", ")}`);
-      } else if (typeof val === "string") {
-        messages.push(`${key}: ${val}`);
-      }
-    }
-    if (messages.length > 0) return messages.join(" | ");
-  }
-  return fallback;
-}
+import { COMMON_ICD10_CODES, Icd10Option } from "@/constants/icd10Data";
 
 const ENCOUNTER_TYPES = [
   { value: "OPD",  label: "Outpatient (OPD)" },
@@ -49,26 +30,20 @@ const ENCOUNTER_TYPES = [
   { value: "TM",   label: "Telemedicine" },
 ];
 
-const ICD10_DIAGNOSES = [
-  { value: "B54", label: "B54 — Malaria, unspecified" },
-  { value: "I10", label: "I10 — Essential (primary) hypertension" },
-  { value: "A09", label: "A09 — Infectious gastroenteritis and colitis" },
-  { value: "E11", label: "E11 — Type 2 diabetes mellitus" },
-  { value: "J45", label: "J45 — Asthma" },
-  { value: "A01", label: "A01 — Typhoid and paratyphoid fevers" },
-  { value: "N39", label: "N39 — Urinary tract infection (UTI)" },
-  { value: "J06", label: "J06 — Acute upper respiratory infections" },
-];
-
 export function EncounterFormPage() {
   const { nhid }  = useParams<{ nhid: string }>();
+  const { user }  = useAuth();
   const navigate  = useNavigate();
   const [loading, setLoading] = useState(false);
   const [icdCode, setIcdCode] = useState<string | null>(null);
+  const [icdOptions, setIcdOptions] = useState<Icd10Option[]>(COMMON_ICD10_CODES);
+
+  const isDoctor = user?.role === "doctor";
 
   const form = useForm({
     initialValues: {
       encounter_type:  "OPD",
+      confidentiality: "normal" as ConfidentialityLevel,
       chief_complaint: "",
       subjective: "",
       objective: "",
@@ -85,6 +60,9 @@ export function EncounterFormPage() {
   async function handleSubmit(values: typeof form.values) {
     setLoading(true);
     try {
+      const selectedOption = icdOptions.find((d) => d.value === icdCode);
+      const optionLabel = selectedOption?.label || icdCode;
+
       // 1. Compile SOAP fields into notes markdown block
       const soapNotes = `
 ### Subjective
@@ -94,7 +72,7 @@ ${values.subjective}
 ${values.objective || "Not recorded."}
 
 ### Assessment
-${icdCode ? `ICD-10 Code: ${icdCode} — ${ICD10_DIAGNOSES.find(d => d.value === icdCode)?.label}` : ""}
+${(isDoctor && icdCode) ? `ICD-10 Code: ${icdCode} — ${optionLabel}` : ""}
 ${values.assessment_notes || "Not recorded."}
 
 ### Plan
@@ -106,17 +84,22 @@ ${values.plan || "Not recorded."}
         encounter_type: values.encounter_type,
         chief_complaint: values.chief_complaint,
         notes: soapNotes,
+        confidentiality: values.confidentiality,
       });
 
       const encounterId = res.data.id;
 
-      // 3. Submit diagnosis if ICD-10 code is selected
-      if (icdCode) {
-        const icdLabel = ICD10_DIAGNOSES.find(d => d.value === icdCode)?.label || icdCode;
+      // 3. Submit diagnosis if ICD-10 code is selected and author is doctor
+      if (isDoctor && icdCode) {
+        const description = selectedOption?.label?.includes("—")
+          ? selectedOption.label.substring(selectedOption.label.indexOf("—") + 2).trim()
+          : (values.assessment_notes?.trim() || selectedOption?.label || `Diagnosis ${icdCode}`);
+
         await createDiagnosis(encounterId, {
           icd_code: icdCode,
-          description: icdLabel.substring(icdLabel.indexOf("—") + 2),
+          description,
           is_primary: true,
+          confidentiality: values.confidentiality,
         });
       }
 
@@ -146,12 +129,23 @@ ${values.plan || "Not recorded."}
       <Card withBorder radius="md" padding="lg">
         <form onSubmit={form.onSubmit(handleSubmit)}>
           <Stack gap="md">
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+            <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
               <Select
                 label="Encounter Type"
                 data={ENCOUNTER_TYPES}
                 required
                 {...form.getInputProps("encounter_type")}
+              />
+              <Select
+                label="Confidentiality Tier"
+                description="Statutory tier under Act 843"
+                data={[
+                  { value: "normal", label: "Normal (Standard Care)" },
+                  { value: "restricted", label: "Restricted (Mental/HIV)" },
+                  { value: "very_restricted", label: "Very Restricted (VIP)" },
+                ]}
+                required
+                {...form.getInputProps("confidentiality")}
               />
               <Group align="flex-end" h="100%" pb="sm">
                 <Checkbox
@@ -188,23 +182,43 @@ ${values.plan || "Not recorded."}
               {...form.getInputProps("objective")}
             />
 
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-              <Select
-                label="Assessment (A) — ICD-10 Primary Code"
-                placeholder="Search diagnostic code…"
-                data={ICD10_DIAGNOSES}
-                value={icdCode}
-                onChange={setIcdCode}
-                clearable
-                searchable
-              />
+            {isDoctor ? (
+              <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+                <Select
+                  label="Assessment (A) — ICD-10 Primary Code"
+                  placeholder="Search code or condition, or type custom code…"
+                  data={icdOptions}
+                  value={icdCode}
+                  onChange={setIcdCode}
+                  onSearchChange={(search) => {
+                    const trimmed = search.trim().toUpperCase();
+                    if (trimmed && !icdOptions.some((d) => d.value.toLowerCase() === trimmed.toLowerCase())) {
+                      setIcdOptions([
+                        { value: trimmed, label: `${trimmed} (Custom ICD-10 Code)`, category: "Custom" },
+                        ...COMMON_ICD10_CODES,
+                      ]);
+                    }
+                  }}
+                  clearable
+                  searchable
+                  nothingFoundMessage="Type code to add custom diagnosis"
+                />
+                <Textarea
+                  label="Clinical Assessment Notes"
+                  placeholder="Differential diagnoses, clinical impressions..."
+                  rows={2}
+                  {...form.getInputProps("assessment_notes")}
+                />
+              </SimpleGrid>
+            ) : (
               <Textarea
-                label="Clinical Assessment Notes"
-                placeholder="Differential diagnoses, clinical impressions..."
-                rows={2}
+                label="Assessment (A) — Nursing Observations & Impressions"
+                placeholder="Nursing impressions, symptom progression, care observations (definitive ICD-10 coding is physician-only)..."
+                description="Nursing assessments and clinical observations."
+                rows={3}
                 {...form.getInputProps("assessment_notes")}
               />
-            </SimpleGrid>
+            )}
 
             <Textarea
               label="Plan (P)"

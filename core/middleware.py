@@ -144,8 +144,9 @@ class NoCachePHIMiddleware:
         if any(path.startswith(p) for p in _STATIC_PREFIXES):
             return response
 
-        # Set no-store so the browser neither caches nor serves from cache
-        response["Cache-Control"] = "no-store"
+        # Set no-store so the browser neither caches nor serves from cache (evicting from bfcache)
+        response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response["Pragma"] = "no-cache"
         return response
 
 
@@ -163,7 +164,7 @@ class ContentSecurityPolicyMiddleware:
         if "Content-Security-Policy" not in response:
             csp = (
                 "default-src 'self'; "
-                "script-src 'self' 'unsafe-inline'; "
+                "script-src 'self'; "
                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
                 "font-src 'self' https://fonts.gstatic.com data:; "
                 "img-src 'self' data: blob:; "
@@ -173,5 +174,12 @@ class ContentSecurityPolicyMiddleware:
                 "base-uri 'self';"
             )
             response["Content-Security-Policy"] = csp
+
+        if "X-Content-Type-Options" not in response:
+            response["X-Content-Type-Options"] = "nosniff"
+        if "X-Frame-Options" not in response:
+            response["X-Frame-Options"] = "DENY"
+        if "Referrer-Policy" not in response:
+            response["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
         return response

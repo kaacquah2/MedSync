@@ -9,7 +9,7 @@
 ![UI Framework](https://img.shields.io/badge/UI-Mantine%20v7-339AF0?style=for-the-badge&logo=mantine)
 ![Database](https://img.shields.io/badge/Database-PostgreSQL%20(Neon)-4169E1?style=for-the-badge&logo=postgresql)
 ![Encryption](https://img.shields.io/badge/Security-Fernet%20AES--128%20%2B%20HMAC-brightgreen?style=for-the-badge)
-![Tests](https://img.shields.io/badge/Tests-220%20Passed-success?style=for-the-badge)
+![Tests](https://img.shields.io/badge/Tests-418%20Passed-success?style=for-the-badge)
 
 ---
 
@@ -135,8 +135,10 @@ Chain integrity can be verified at any time via:
 python manage.py verify_audit_chain
 ```
 
-#### Database-Level Immutability:
-A PostgreSQL trigger (`BEFORE UPDATE OR DELETE`) blocks any mutation or deletion of audit logs directly at the SQL storage level, reinforced by Django ORM override protections and read-only admin registration. Automated retention management can be performed using `python manage.py prune_audit_logs`.
+#### Database-Level Immutability & WORM Retention:
+- **SQL Immutability Triggers**: A PostgreSQL trigger (`BEFORE UPDATE OR DELETE`) blocks mutation or deletion directly at the database engine level, reinforced by Django ORM override protections (`save()`, `delete()`) and read-only admin registration.
+- **Archive-then-Anchor WORM Pruning**: To prevent unbounded table growth while preserving mathematical chain continuity, `python manage.py prune_audit_logs --days=30` exports older rows into a signed WORM JSON archive (`media/audit_archives/`), publishes a cryptographic anchor receipt (`AuditLogArchiveAnchor`) to an append-only ledger (`anchor_ledger.jsonl`), and atomically prunes database records.
+- **Continuous Whole-Chain Verification**: `python manage.py verify_audit_chain` validates all external WORM archives, checks ledger integrity, and bridges active database verification directly to the archive's anchor hash—guaranteeing unbroken tamper-evidence across pruning cycles.
 
 ### 6. Inter-Hospital Access Control & Break-the-Glass Workflow
 
@@ -304,7 +306,7 @@ mEd/
 │
 ├── templates/                    # Server-rendered HTML templates (Bootstrap 5 fallback)
 ├── static/                       # Static CSS & JS assets
-├── tests/                        # Backend Pytest suite (196 tests)
+├── tests/                        # Backend Pytest suite (319 tests)
 └── docs/                         # Extended academic & architecture documentation
 ```
 
@@ -407,8 +409,8 @@ All demo accounts use the default password: **`Demo@123456`**
 
 ### 1. Role-Based Access Control (RBAC)
 1. Log in as `ugmc_recept` (Receptionist).
-2. Attempt to open a patient's clinical encounter or navigate to `/api/records/encounters/`.
-3. System responds with **`403 Access Denied`** — Receptionists are strictly limited to registration.
+2. Attempt to open a patient's clinical encounter in the UI or directly access an encounter endpoint such as `/api/encounters/1/` (or `/api/patients/<universal_id>/encounters/`).
+3. System responds with **`403 Forbidden / Access Denied`** — Receptionists are strictly limited to registration and cannot view or manage clinical encounters.
 4. Log in as `ugmc_doctor` — full clinical history is immediately accessible.
 
 ### 2. Inter-Hospital Access & Emergency Break-the-Glass
@@ -438,9 +440,16 @@ All demo accounts use the default password: **`Demo@123456`**
 
 ## Running Tests
 
-The application features a comprehensive automated test suite across backend and frontend codebases (**220 total tests**).
+The application features a comprehensive automated test suite across backend and frontend codebases (**418 automated tests**: **391** backend Pytest tests + **27** frontend Vitest tests, with 2 Postgres RLS tests skipped on SQLite).
 
-### Backend Test Suite (Pytest — 196 Tests)
+The test suite systematically enforces core system invariants and security guarantees:
+- **RBAC Boundaries & Negative Authorization**: Deny-by-default access policies across all 6 roles, strict tenant/hospital boundary scoping, and tamper-proof verification that non-clinical roles (e.g., Receptionists) cannot read or write clinical notes.
+- **Field-Level Encryption Roundtrips**: Transparent Fernet (AES-128-CBC + HMAC-SHA256) encryption/decryption cycles for sensitive PII/PHI fields, key separation, and ciphertext integrity.
+- **Blind Indexing & Deterministic Hashing**: Consistent search token generation without cleartext exposure or index corruption.
+- **Idempotency & Concurrency Controls**: Double-submission protections and advisory lock serializations on clinical operations.
+- **Break-the-Glass Emergency Flows**: Justification requirements, one-hour TTL access expiration, and mandatory audit log generation.
+
+### Backend Test Suite (Pytest — 391 Tests)
 
 ```bash
 # Run all backend unit & integration tests
@@ -451,7 +460,7 @@ pytest tests/ --cov=. --cov-report=html
 ```
 *Tests run against in-memory SQLite without requiring an active external database connection.*
 
-### Frontend Test Suite (Vitest — 24 Tests)
+### Frontend Test Suite (Vitest — 27 Tests)
 
 ```bash
 cd frontend
@@ -499,6 +508,7 @@ Key enhancements planned for future production deployments:
 - **Celery + Redis Task Queue**: Asynchronous processing for audit logs, FHIR exports, and notification alerts.
 - **WebAuthn / Passkey Support**: Biometric authentication for admin and high-privilege clinical roles.
 - **Patient Consent Engine**: Dynamic patient-driven consent rules blocking access to specific sensitive records.
+- **Advanced Electronic Signatures (PKI / Act 772 §§11–14)**: Clinician cryptographic signing (WebCrypto / FIDO2 tokens) for drug prescriptions and diagnostic orders to achieve legal non-repudiation and Pharmacy Council compliance.
 
 ---
 

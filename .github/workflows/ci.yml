@@ -44,7 +44,7 @@ jobs:
       - name: Check dependency vulnerabilities with pip-audit
         run: |
           pip install pip-audit
-          pip-audit --desc on -r requirements.txt || true
+          pip-audit --desc on -r requirements.txt
 
       - name: Run test suite
         env:
@@ -90,9 +90,13 @@ jobs:
         working-directory: frontend
         run: npm run typecheck
 
+      - name: Run frontend tests
+        working-directory: frontend
+        run: npm test
+
       - name: Audit frontend dependencies
         working-directory: frontend
-        run: npm audit --audit-level=high || true
+        run: npm audit --audit-level=high
 
       - name: Build
         working-directory: frontend

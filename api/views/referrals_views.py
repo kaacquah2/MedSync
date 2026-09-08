@@ -102,7 +102,17 @@ class ReferralListCreateView(APIView):
 
         paginator = PageNumberPagination()
         page = paginator.paginate_queryset(qs, request)
-        return paginator.get_paginated_response(ReferralSerializer(page, many=True).data)
+        data = ReferralSerializer(page, many=True).data
+        extra = {"count": len(data)}
+        if direction:
+            extra["direction"] = direction
+        log_action(
+            request,
+            action="VIEW_REFERRALS",
+            target=getattr(request.user, "hospital", None),
+            extra=extra,
+        )
+        return paginator.get_paginated_response(data)
 
     def post(self, request):
         patient_nhid = request.data.get("patient_nhid") or request.data.get("patient")
@@ -167,6 +177,20 @@ class ReferralStatusView(APIView):
         referral.status = new_status
         referral.status_notes = notes
         referral.save(update_fields=["status", "status_notes"])
+
+        if new_status == Referral.Status.ACCEPTED:
+            from access.permissions import ensure_treatment_relationship
+            from_name = referral.from_hospital.name if referral.from_hospital else "external hospital"
+            reason = f"Accepted referral from {from_name}"
+            if referral.reason:
+                reason += f": {referral.reason}"
+            ensure_treatment_relationship(
+                clinician=request.user,
+                patient=referral.patient,
+                hospital=referral.to_hospital,
+                reason=reason,
+            )
+
         log_action(
             request,
             action="UPDATE_REFERRAL",

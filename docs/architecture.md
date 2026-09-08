@@ -86,10 +86,9 @@ sequenceDiagram
 
 ---
 
-## 3. Sequence Diagram: Cross-Hospital Patient Access with Audit Flag
+## 3. Sequence Diagram: Cross-Hospital Patient Access & Break-Glass Gate
 
-This is the core inter-hospital access scenario. A Doctor at Hospital B accesses
-a patient whose records were created at Hospital A.
+This shows the inter-hospital access control gate (`can_access_patient()`). A Doctor at Hospital B (KATH) accesses a patient registered at Hospital A (UGMC), illustrating how cross-facility access is denied without an active `TreatmentRelationship` or authorized `BreakGlassAccess`.
 
 ```mermaid
 sequenceDiagram
@@ -111,22 +110,42 @@ sequenceDiagram
     DocB->>Browser: Click "View" on patient
     Browser->>Django: GET /patients/NHID-A1B2C3D4/
     Django->>Django: Check auth (✓) + role (DOCTOR ✓)
+
+    rect rgb(255, 235, 235)
+        Note over Django: Inter-Hospital Access Gate: can_access_patient(DocB, patient)
+        Django->>DB: Check: same hospital? (KATH ≠ UGMC -> No)<br/>Check TreatmentRelationship active? (No)<br/>Check BreakGlassAccess active? (No)
+        DB-->>Django: No active relationship or emergency grant
+        Django->>DB: CREATE AuditLog(action=ACCESS_DENIED, is_cross_hospital=TRUE)
+        Django-->>Browser: 403 Forbidden: "Cross-hospital access requires<br/>active treatment relationship or break-glass override"
+    end
+
+    opt Emergency Override (Break-the-Glass)
+        DocB->>Browser: Click "Break Glass" + provide clinical justification
+        Browser->>Django: POST /api/patients/NHID-A1B2C3D4/break-glass/<br/>{reason: "Acute polytrauma emergency referral", otp_token: "..."}
+        Django->>Django: Re-verify credentials / conditional TOTP
+        Django->>DB: INSERT BreakGlassAccess(doctor=DocB, patient=patient,<br/>reason=..., expires_at=now()+1hr)
+        Django->>DB: CREATE AuditLog(action=BREAK_GLASS, is_cross_hospital=TRUE)
+        Django-->>Browser: 200 OK (Emergency Access Granted for 1 Hour)
+    end
+
+    Note over DocB: Subsequent Request (within 1-hour window)
+    DocB->>Browser: View patient NHID-A1B2C3D4
+    Browser->>Django: GET /patients/NHID-A1B2C3D4/
+    Django->>Django: can_access_patient(DocB, patient) -> TRUE (BreakGlass active)
     Django->>DB: SELECT patient WHERE universal_id=?
     DB-->>Django: Patient (encrypted fields)
     Django->>Django: Decrypt PII fields using FIELD_ENCRYPTION_KEY
-    Django->>Django: Compute is_cross_hospital:\n  DocB.hospital(KATH) ≠ patient.registered_at_hospital(UGMC)\n  → is_cross_hospital = TRUE
+    Django->>Django: Compute is_cross_hospital = TRUE
 
     Django->>DB: CREATE AuditLog(\n  actor=DocB, role=DOCTOR,\n  actor_hospital='KATH',\n  action=VIEW_PATIENT,\n  patient_nhid='NHID-A1B2C3D4',\n  is_cross_hospital=TRUE,\n  ip_address=...\n)
-    Note over Audit: Immutable entry created
+    Note over Audit: Immutable chained audit entry created
 
     Django->>DB: SELECT encounters WHERE patient=? (all hospitals)
     DB-->>Django: Encounters from UGMC and KATH
-    Django-->>Browser: Patient detail with ⚠️ cross-hospital banner\nand full encounter timeline
-
-    Note over DocB: Banner: "Cross-hospital access.\nThis patient is registered at UGMC.\nThis access has been logged."
+    Django-->>Browser: Patient detail with 🚨 Break-Glass banner\nand full encounter timeline
 
     rect rgb(255, 240, 240)
-        Note over Audit: System Admin can now see:\naudit log entry with is_cross_hospital=TRUE
+        Note over Audit: System Admin can inspect:\nEmergency break-glass reason & cross-hospital disclosure
     end
 ```
 
@@ -208,24 +227,31 @@ graph LR
 
 ---
 
-## 6. Data Flow: Search with Blind Index
+## 6. Data Flow: Search with Blind Index & Trigram Tokens
 
 ```mermaid
 flowchart TD
-    A[User types query in search box] --> B{Query starts with NHID-?}
+    A[User enters search query] --> B{Starts with NHID-?}
 
-    B -- Yes --> C[SQL: SELECT WHERE universal_id = query\nO log n — DB index]
-    B -- No --> D[Compute HMAC-SHA256 of query\nusing BLIND_INDEX_KEY]
-    D --> E[SQL: SELECT WHERE name_hash = hmac\nO log n — DB index]
-    E --> F{Any exact matches?}
-    F -- Yes --> G[Return indexed results]
-    F -- No, or query < 5 chars --> H[Python-side partial scan\nLoad all → decrypt → filter\nO n — documented limitation]
+    B -- Yes --> C[Exact NHID Lookup\nSQL: SELECT WHERE universal_id = query\nO(log n) B-tree DB index]
+    B -- No --> D{Query Type?}
 
-    C --> I[Display results]
-    G --> I
-    H --> I
+    D -- Exact Name or National ID --> E[Compute HMAC-SHA256 of query\nusing BLIND_INDEX_KEY]
+    E --> F[Exact Blind Index Match\nSQL: WHERE name_hash = hmac\nOR national_id_hash = hmac\nO(log n) B-tree DB index]
 
-    style H fill:#fff3cd,stroke:#ffc107
+    D -- Substring (len >= 3) --> G[Extract character trigrams\ne.g. 'kof', 'ofi' from 'kofi'\nCompute HMAC-SHA256 per trigram]
+    G --> H[Trigram Set Intersection\nSQL: SELECT patient_id FROM PatientSearchToken\nWHERE token_hash IN (trigrams)\nGROUP BY patient_id HAVING COUNT = N\nO(log n) token index]
+
+    F -- No match & len < 3 --> J[Home Hospital Scoped Match\nRestricted to local facility\nDocumented privacy boundary]
+
+    C --> K[Decrypt Fernet PII in-memory\nfor authorized clinician]
+    F --> K
+    H --> K
+    J --> K
+    K --> L[Render search results in UI]
+
     style C fill:#d4edda,stroke:#28a745
-    style E fill:#d4edda,stroke:#28a745
+    style F fill:#d4edda,stroke:#28a745
+    style H fill:#d4edda,stroke:#28a745
+    style J fill:#fff3cd,stroke:#ffc107
 ```

@@ -99,7 +99,7 @@ export function ReferralsPage() {
     });
   }
 
-  const canManage = ["doctor", "hospital_admin", "super_admin"].includes(user?.role ?? "");
+  const canManage = user?.role === "doctor";
 
   return (
     <Stack gap="lg">

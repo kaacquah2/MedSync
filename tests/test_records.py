@@ -10,6 +10,8 @@ Verifies:
 
 import json
 
+import pytest
+
 from records.models import Diagnosis, Encounter, LabResult, Prescription
 
 
@@ -64,6 +66,24 @@ class TestEncounterCreation:
         assert enc.status == Encounter.Status.OPEN
         assert enc.get_status_display() == "Open"
 
+    def test_encounter_validation_empty_complaint(self, client_as_doctor_a, patient_a):
+        resp = client_as_doctor_a.post(
+            f"/api/patients/{patient_a.universal_id}/encounters/",
+            json.dumps({"encounter_type": "OPD", "chief_complaint": "   "}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "Chief complaint is required." in resp.json().get("error", "")
+
+    def test_encounter_validation_invalid_type(self, client_as_doctor_a, patient_a):
+        resp = client_as_doctor_a.post(
+            f"/api/patients/{patient_a.universal_id}/encounters/",
+            json.dumps({"encounter_type": "INVALID_TYPE", "chief_complaint": "Valid complaint"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "encounter_type" in resp.json()
+
 
 class TestDiagnosisCreation:
     def test_doctor_can_add_diagnosis(self, client_as_doctor_a, encounter_a):
@@ -81,14 +101,15 @@ class TestDiagnosisCreation:
         assert resp.status_code == 201
         assert Diagnosis.objects.filter(encounter=encounter_a).exists()
 
-    def test_nurse_can_add_diagnosis(self, db, nurse_a, encounter_a, client):
+    def test_nurse_cannot_add_diagnosis(self, db, nurse_a, encounter_a, client):
         client.force_login(nurse_a)
         resp = client.post(
             f"/api/encounters/{encounter_a.pk}/diagnoses/",
             json.dumps({"icd_code": "R51.9", "description": "Headache", "is_primary": True}),
             content_type="application/json",
         )
-        assert resp.status_code == 201
+        assert resp.status_code == 403
+        assert not Diagnosis.objects.filter(encounter=encounter_a, description="Headache").exists()
 
 
 class TestPrescriptionRBAC:
@@ -152,6 +173,146 @@ class TestLabResults:
         )
         assert resp.status_code == 201
         assert LabResult.objects.filter(encounter=encounter_a).exists()
+
+    def test_nurse_cannot_add_lab_result(self, db, nurse_a, encounter_a, client):
+        client.force_login(nurse_a)
+        resp = client.post(
+            f"/api/encounters/{encounter_a.pk}/lab-results/",
+            json.dumps(
+                {
+                    "test_name": "FBC",
+                    "result_value": "WBC 5.5 × 10^9/L",
+                    "reference_range": "4-11",
+                    "is_abnormal": False,
+                }
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 403
+
+    def test_lab_tech_can_add_result_with_order_links_and_results(
+        self, db, hospital_a, encounter_a, patient_a, doctor_a, client
+    ):
+        from accounts.models import User
+        from records.models import LabOrder
+
+        lab_tech = User.objects.create_user(
+            username="labtech_order",
+            password="Test@password1",
+            role="lab_technician",
+            hospital=hospital_a,
+        )
+        order = LabOrder.objects.create(
+            encounter=encounter_a,
+            patient=patient_a,
+            ordered_by=doctor_a,
+            test_name="FBC",
+            priority="routine",
+            status="pending",
+        )
+        client.force_login(lab_tech)
+        resp = client.post(
+            f"/api/encounters/{encounter_a.pk}/lab-results/",
+            json.dumps(
+                {
+                    "order_id": order.id,
+                    "test_name": "FBC",
+                    "result_value": "WBC 6.0 × 10^9/L",
+                    "reference_range": "4-11",
+                    "is_abnormal": False,
+                }
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 201
+        order.refresh_from_db()
+        assert order.status == LabOrder.Status.RESULTED
+        lab = LabResult.objects.get(pk=resp.data["id"])
+        assert lab.order == order
+        assert lab.is_critical is False
+        assert resp.data["doctor_notified"] is False
+
+    def test_critical_result_creates_patient_alert_and_notifies_doctor(
+        self, db, hospital_a, encounter_a, patient_a, doctor_a, client
+    ):
+        from accounts.models import User
+        from django.core import mail
+        from audit.models import AuditLog
+        from patients.models import PatientAlert
+        from records.models import LabOrder
+
+        doctor_a.email = "attending_doc@ugmc.gov.gh"
+        doctor_a.save()
+
+        lab_tech = User.objects.create_user(
+            username="labtech_crit",
+            password="Test@password1",
+            role="lab_technician",
+            hospital=hospital_a,
+        )
+        order = LabOrder.objects.create(
+            encounter=encounter_a,
+            patient=patient_a,
+            ordered_by=doctor_a,
+            test_name="Potassium",
+            priority="urgent",
+            status="pending",
+        )
+        mail.outbox.clear()
+        client.force_login(lab_tech)
+        resp = client.post(
+            f"/api/encounters/{encounter_a.pk}/lab-results/",
+            json.dumps(
+                {
+                    "order_id": order.id,
+                    "test_name": "Potassium",
+                    "result_value": "7.2 mmol/L (CRITICAL HIGH)",
+                    "reference_range": "3.5-5.0",
+                    "is_critical": True,
+                    "notify_doctor": True,
+                }
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 201
+        data = resp.data
+        assert data["is_critical"] is True
+        assert data["is_abnormal"] is True
+        assert data["doctor_notified"] is True
+        assert data["doctor_name"] is not None
+        assert data["patient_alert_id"] is not None
+
+        # Originating order is marked resulted
+        order.refresh_from_db()
+        assert order.status == LabOrder.Status.RESULTED
+
+        # Emergency PatientAlert was created
+        alert = PatientAlert.objects.get(pk=data["patient_alert_id"])
+        assert alert.patient == patient_a
+        assert alert.kind == PatientAlert.Kind.ALERT
+        assert alert.severity == PatientAlert.Severity.LIFE_THREAT
+        assert "Potassium" in alert.label
+
+        # Notification email was sent to ordering doctor
+        assert len(mail.outbox) == 1
+        sent_email = mail.outbox[0]
+        assert "URGENT" in sent_email.subject
+        assert doctor_a.email in sent_email.to
+        assert "7.2 mmol/L" in sent_email.body
+
+        # Doctor's alerts feed contains the critical lab result as LIFE_THREAT
+        client.force_login(doctor_a)
+        feed_resp = client.get("/api/alerts/")
+        assert feed_resp.status_code == 200
+        feed_results = feed_resp.data["results"]
+        matching_lab_alert = next((a for a in feed_results if a["id"] == f"lab-{data['id']}"), None)
+        assert matching_lab_alert is not None
+        assert matching_lab_alert["severity"] == "LIFE_THREAT"
+        assert "CRITICAL" in matching_lab_alert["label"]
+
+        # Audit logs were generated
+        assert AuditLog.objects.filter(action=AuditLog.Action.CREATE_LAB_RESULT).exists()
+        assert AuditLog.objects.filter(action=AuditLog.Action.CREATE_ALERT).exists()
 
 
 class TestClinicalCodeValidationAndIdempotency:
@@ -293,9 +454,16 @@ class TestClinicalCodeValidationAndIdempotency:
         assert r2.status_code == 201
         assert r2.json() == r1.json()
 
+        from core.blind_index import make_blind_index
         from records.models import LabOrder
 
-        assert LabOrder.objects.filter(patient=patient_a, test_name="Urinalysis").count() == 1
+        assert (
+            LabOrder.objects.filter(
+                patient=patient_a, test_name_hash=make_blind_index("Urinalysis")
+            ).count()
+            == 1
+        )
+        assert LabOrder.objects.filter(patient=patient_a).first().test_name == "Urinalysis"
 
     def test_prescription_idempotency_different_body_creates_distinct_records(
         self, client_as_doctor_a, encounter_a
@@ -405,3 +573,20 @@ class TestClinicalCodeValidationAndIdempotency:
         data = resp.json()
         assert "count" in data
         assert "results" in data
+
+
+class TestEncounterCascadeProtection:
+    def test_encounter_delete_protected_when_diagnosis_exists(self, db, encounter_a, doctor_a):
+        from django.db.models import ProtectedError
+        from records.models import Diagnosis
+
+        Diagnosis.objects.create(
+            encounter=encounter_a,
+            icd_code="J18.9",
+            description="Pneumonia, unspecified",
+            created_by=doctor_a,
+        )
+
+        with pytest.raises(ProtectedError):
+            encounter_a.delete()
+

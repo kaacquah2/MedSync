@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from api.permissions import CanManageWards, has_hospital_access
+from audit.utils import log_action
 from hospitals.models import Bed, Ward
 
 
@@ -74,7 +75,17 @@ class WardListCreateView(APIView):
         hospital_id = request.GET.get("hospital")
         if hospital_id:
             qs = qs.filter(hospital_id=hospital_id)
-        return Response(WardSerializer(qs, many=True).data)
+        data = WardSerializer(qs, many=True).data
+        extra = {"count": len(data)}
+        if hospital_id:
+            extra["hospital_id"] = hospital_id
+        log_action(
+            request,
+            action="VIEW_WARDS",
+            target=getattr(request.user, "hospital", None),
+            extra=extra,
+        )
+        return Response(data)
 
     def post(self, request):
         serializer = WardSerializer(data=request.data)
@@ -101,6 +112,20 @@ class WardDetailView(APIView):
 
     def get(self, request, pk):
         ward = get_object_or_404(Ward, pk=pk)
+        if not has_hospital_access(request.user, ward.hospital):
+            return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        is_cross = (
+            request.user.hospital is not None
+            and ward.hospital is not None
+            and request.user.hospital_id != ward.hospital_id
+        )
+        log_action(
+            request,
+            action="VIEW_WARD",
+            target=ward,
+            is_cross_hospital=is_cross,
+            extra={"ward_code": ward.code, "ward_name": ward.name},
+        )
         return Response(WardSerializer(ward).data)
 
     def patch(self, request, pk):

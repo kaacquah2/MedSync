@@ -16,6 +16,7 @@ import {
   Box,
   Burger,
   Button,
+  Card,
   Group,
   Menu,
   Modal,
@@ -56,11 +57,13 @@ import {
   IconUser,
   IconUserPlus,
   IconUsers,
+  IconEye,
+  IconEyeOff,
 } from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { NavLink as RouterNavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
-import { fetchAlerts, fetchCsrf, fetchDashboard } from "@/api/endpoints";
+import { fetchAlerts, fetchCsrf, fetchDashboard, fetchShifts } from "@/api/endpoints";
 import { ROLE_COLORS } from "@/constants/roles";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { NotificationDrawer } from "./NotificationDrawer";
@@ -92,13 +95,14 @@ const ICON_MAP: Record<string, React.ComponentType<any>> = {
 };
 
 // Idle timeout constants (ms).
-// LOGOUT_AT_MS must equal Django's SESSION_COOKIE_AGE (emr/settings.py, default 3600 s).
+// LOGOUT_AT_MS must equal Django's SESSION_COOKIE_AGE (emr/settings.py, default 900 s).
 // If SESSION_COOKIE_AGE changes, update LOGOUT_AT_MS to match.
-const SESSION_DURATION_MS = 60 * 60 * 1000; // 3600 s — mirrors SESSION_COOKIE_AGE
-const WARN_BEFORE_MS      =  2 * 60 * 1000; // warn 2 minutes before expiry
-const WARN_AT_MS          = SESSION_DURATION_MS - WARN_BEFORE_MS;
-const LOGOUT_AT_MS        = SESSION_DURATION_MS;
-const COUNTDOWN_MS        = WARN_BEFORE_MS;
+// Enforces 15-minute clinical inactivity limit pursuant to HIPAA § 164.312(a)(2)(iii).
+export const SESSION_DURATION_MS = 15 * 60 * 1000; // 900 s (15 min) — mirrors SESSION_COOKIE_AGE
+export const WARN_BEFORE_MS      =  2 * 60 * 1000; // warn 2 minutes before expiry
+export const WARN_AT_MS          = SESSION_DURATION_MS - WARN_BEFORE_MS;
+export const LOGOUT_AT_MS        = SESSION_DURATION_MS;
+export const COUNTDOWN_MS        = WARN_BEFORE_MS;
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -136,19 +140,43 @@ export function AppLayout() {
   const [searchQuery, setSearchQuery]           = useState("");
   const searchRef                               = useRef<HTMLInputElement>(null);
 
-  // 8-hour shift countdown state
+  const [curtainMode, setCurtainMode]           = useState(false);
+
+  // Keyboard shortcut: Alt+P to toggle Ward Privacy Screen
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.altKey && (e.key === "p" || e.key === "P")) {
+        e.preventDefault();
+        setCurtainMode((prev) => !prev);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const isNurse = user?.role === "nurse";
+
+  // Shift tracking for clinical ward nurses: driven by authentic database ShiftRecord
+  const { data: shiftsData } = useQuery({
+    queryKey: ["active-shift-nurse", user?.id],
+    queryFn: () => fetchShifts().then((r) => r.data),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    enabled: !!user && isNurse,
+  });
+
+  const activeShift = isNurse ? (shiftsData?.find((s) => s.is_active) ?? null) : null;
   const [shiftProgress, setShiftProgress] = useState(100);
-  const [shiftTimeLeft, setShiftTimeLeft] = useState("8h 00m");
+  const [shiftTimeLeft, setShiftTimeLeft] = useState("Off duty");
 
   useEffect(() => {
-    if (!user) return;
-
-    let startStr = localStorage.getItem("mEd-shift-start");
-    if (!startStr) {
-      startStr = Date.now().toString();
-      localStorage.setItem("mEd-shift-start", startStr);
+    if (!isNurse || !activeShift?.started_at) {
+      setShiftProgress(0);
+      setShiftTimeLeft("Off duty");
+      return;
     }
-    const shiftStart = parseInt(startStr, 10);
+
+    const shiftStart = new Date(activeShift.started_at).getTime();
 
     const updateTimer = () => {
       const duration = 8 * 60 * 60 * 1000; // 8 hours
@@ -170,9 +198,9 @@ export function AppLayout() {
     };
 
     updateTimer();
-    const interval = setInterval(updateTimer, 60000);
+    const interval = setInterval(updateTimer, 30000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [isNurse, activeShift?.started_at]);
 
   // Sync colorScheme to data-mode attribute for the CSS custom variables
   useEffect(() => {
@@ -249,12 +277,8 @@ export function AppLayout() {
       }, LOGOUT_AT_MS);
     }
 
-    // Keep the Django session alive via the shared axios client (consistent
-    // auth + error-handling) — fire once every 10 min while page is open.
-    const heartbeatInterval = setInterval(() => {
-      fetchCsrf().catch(() => {});
-    }, 10 * 60 * 1000);
-
+    // Autonomous background heartbeat removed to prevent indefinite session prolongation.
+    // Session extension occurs only in response to verified user interactions.
     const events = ["mousemove", "keydown", "click", "scroll", "touchstart"];
     events.forEach((ev) => document.addEventListener(ev, resetTimers, { passive: true }));
     resetTimers();
@@ -263,7 +287,6 @@ export function AppLayout() {
       clearTimeout(warnTimer);
       clearTimeout(logoutTimer);
       clearInterval(countdownInterval);
-      clearInterval(heartbeatInterval);
       events.forEach((ev) => document.removeEventListener(ev, resetTimers));
     };
   }, [logout, navigate, openWarn, closeWarn]);
@@ -272,14 +295,19 @@ export function AppLayout() {
     e.preventDefault();
     const q = searchQuery.trim();
     if (q) {
-      navigate(`/patients?q=${encodeURIComponent(q)}`);
+      if (/^NHID-[A-F0-9]{8,16}$/i.test(q)) {
+        // Direct route navigation prevents leaving sensitive patient NHIDs in URL query strings
+        navigate(`/patients/${q.toUpperCase()}`);
+      } else {
+        // Pass search query via navigation state to avoid leaving sensitive patient names/IDs in URL query strings
+        navigate("/patients", { state: { q } });
+      }
       setSearchQuery("");
       close();
     }
   }
 
   async function handleLogout() {
-    localStorage.removeItem("mEd-shift-start");
     await logout();
     navigate("/login", { replace: true });
   }
@@ -362,8 +390,20 @@ export function AppLayout() {
             />
           </Box>
 
-          {/* Right: notification drawer + theme toggle + user menu */}
+          {/* Right: notification drawer + curtain mode + theme toggle + user menu */}
           <Group>
+            <Tooltip label={curtainMode ? "Disable Ward Privacy Screen (Alt+P)" : "Ward Privacy Screen / Curtain Mode (Alt+P)"}>
+              <ActionIcon
+                onClick={() => setCurtainMode(!curtainMode)}
+                variant={curtainMode ? "filled" : "subtle"}
+                color={curtainMode ? "grape" : "gray"}
+                size="lg"
+                aria-label="Toggle Ward Privacy Screen"
+              >
+                {curtainMode ? <IconEyeOff size={18} /> : <IconEye size={18} />}
+              </ActionIcon>
+            </Tooltip>
+
             <NotificationDrawer />
 
             <Tooltip label={colorScheme === "dark" ? "Light mode" : "Dark mode"}>
@@ -488,18 +528,27 @@ export function AppLayout() {
           </Box>
         </ScrollArea>
 
-        {/* Footer: shift countdown + role badge */}
+        {/* Footer: shift countdown (nurses only) + role badge */}
         <Stack gap={0} style={{ borderTop: "1px solid var(--line)" }}>
-          <Box className={classes.shiftTracker}>
-            <div className={classes.shiftHeader}>
-              <span className={classes.shiftLabel}>Shift remaining</span>
-              <span className={classes.shiftTime}>{shiftTimeLeft}</span>
-            </div>
-            <Progress value={shiftProgress} color="var(--accent)" size="xs" radius="xl" />
-          </Box>
+          {isNurse && (
+            <Box className={classes.shiftTracker}>
+              <div className={classes.shiftHeader}>
+                <span className={classes.shiftLabel}>
+                  {activeShift ? "Shift remaining" : "Shift status"}
+                </span>
+                <span className={classes.shiftTime}>{shiftTimeLeft}</span>
+              </div>
+              <Progress
+                value={activeShift ? shiftProgress : 0}
+                color={activeShift ? "var(--accent)" : "gray"}
+                size="xs"
+                radius="xl"
+              />
+            </Box>
+          )}
           <Box
             p="xs"
-            pt={0}
+            pt={isNurse ? 0 : "xs"}
             className="role-badge-text"
           >
             <Group px="xs" pb="xs">
@@ -526,11 +575,65 @@ export function AppLayout() {
       </AppShell.Navbar>
 
       {/* ── Main content ────────────────────────────────────────────────────── */}
-      <AppShell.Main>
+      <AppShell.Main
+        style={
+          curtainMode
+            ? {
+                filter: "blur(12px)",
+                pointerEvents: "none",
+                userSelect: "none",
+                transition: "filter 0.2s ease-in-out",
+              }
+            : { transition: "filter 0.2s ease-in-out" }
+        }
+      >
         <OfflineBanner />
         <Outlet />
       </AppShell.Main>
     </AppShell>
+
+    {/* ── Ward Privacy Curtain Screen Overlay ────────────────────────────── */}
+    {curtainMode && (
+      <Box
+        onClick={() => setCurtainMode(false)}
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 9999,
+          backgroundColor: "rgba(0, 0, 0, 0.4)",
+          backdropFilter: "blur(4px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+        }}
+      >
+        <Card
+          withBorder
+          radius="lg"
+          p="xl"
+          style={{ textAlign: "center", maxWidth: 420, boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }}
+          onClick={(e: React.MouseEvent) => e.stopPropagation()}
+        >
+          <ThemeIcon size={56} radius="xl" color="grape" variant="light" mx="auto" mb="md">
+            <IconShieldLock size={32} />
+          </ThemeIcon>
+          <Text fw={700} size="lg" mb="xs">Ward Privacy Mode Active</Text>
+          <Text size="sm" c="dimmed" mb="lg">
+            Patient identifiers and clinical notes are obscured to protect patient privacy against shoulder-surfing on shared ward terminals.
+          </Text>
+          <Button
+            color="grape"
+            size="md"
+            leftSection={<IconEye size={18} />}
+            onClick={() => setCurtainMode(false)}
+            fullWidth
+          >
+            Resume Clinical Session (Alt+P)
+          </Button>
+        </Card>
+      </Box>
+    )}
 
     {/* ── Session timeout warning modal ──────────────────────────────────── */}
     <Modal
@@ -559,7 +662,9 @@ export function AppLayout() {
         </Button>
         <Button
           onClick={() => {
-            // Reset timers by simulating activity
+            // Refresh session on verified active user interaction and reset timers
+            fetchCsrf().catch(() => {});
+            closeWarn();
             document.dispatchEvent(new MouseEvent("click"));
           }}
         >

@@ -216,3 +216,37 @@ class TestEmailOTP:
         )
         assert resp_correct.status_code == 400
         assert client.session.get("otp_verified") is not True
+
+    def test_email_otp_uses_keyed_hmac_and_rejects_bare_sha256(self, db, doctor_a):
+        import hashlib
+        from django.conf import settings
+        from accounts.models import hash_email_otp
+
+        otp_code = EmailOTP.objects.generate_for(doctor_a)
+        otp_record = EmailOTP.objects.get(user=doctor_a)
+
+        expected_hmac = hash_email_otp(otp_code)
+        bare_sha256 = hashlib.sha256(otp_code.encode()).hexdigest()
+
+        assert otp_record.code_hash == expected_hmac
+        assert otp_record.code_hash != bare_sha256
+        assert len(otp_record.code_hash) == 64
+
+    def test_email_otp_legacy_sha256_fallback(self, db, doctor_a):
+        import hashlib
+        from django.utils import timezone
+
+        legacy_code = "123456"
+        legacy_hash = hashlib.sha256(legacy_code.encode()).hexdigest()
+        expires_at = timezone.now() + timezone.timedelta(minutes=10)
+
+        EmailOTP.objects.create(
+            user=doctor_a,
+            code_hash=legacy_hash,
+            expires_at=expires_at,
+            attempts=0,
+        )
+
+        assert EmailOTP.objects.verify_and_consume(doctor_a, legacy_code) is True
+        consumed = EmailOTP.objects.get(user=doctor_a)
+        assert consumed.used is True

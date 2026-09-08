@@ -38,6 +38,13 @@ services:
       # Number of reverse proxy hops in front of the app (Render edge proxy = 1)
       - key: TRUSTED_PROXY_COUNT
         value: "1"
+    # Persistent disk for clinical documents and audit archives (C-08 remediation).
+    # Prevents ephemeral disk wipeout on container restarts and deployments.
+    # Note: Requires Render Starter plan ($7/mo) + Disk ($0.25/GB/mo).
+    disk:
+      name: med-media
+      mountPath: /app/media
+      sizeGB: 10
 
   - type: redis
     name: med-redis

@@ -20,15 +20,23 @@ MedSync uses six roles stored as lowercase snake_case values in the database.
 ## 2. Object-Level Security & Workspace Isolation
 
 ### Patient access gate (`access/permissions.py`)
-Every view that returns patient data passes the request through `can_access_patient(user, patient)`, which evaluates in priority order:
+Every view that returns patient data passes the request through `can_access_patient(user, patient)`. To guarantee fail-closed security and life-safety in emergencies, gates are evaluated in the following strict priority order:
 
-1. **admin** — `super_admin` or `hospital_admin` always allowed
-2. **same_hospital** — patient's `registered_at_hospital == user.hospital`
-3. **treatment_relationship** — active `TreatmentRelationship` exists
-4. **break_glass** — unexpired `BreakGlassAccess` grant (1 hour)
-5. **denied** — all other cases
+1. **admin** — `super_admin` has unrestricted system-wide access; `hospital_admin` is strictly tenant-scoped to their own hospital's registered patients.
+2. **break_glass** — unexpired `BreakGlassAccess` grant (1 hour). Deliberately evaluated before consent and institutional boundaries so life-saving emergency care is never blocked by administrative barriers or consent revocations.
+3. **consent_revoked** — explicitly revoked `PatientConsent` (`granted=False` or `revoked_at is not None`) denies access immediately, respecting patient privacy preferences under Ghana Data Protection Act (Act 843) even if a same-hospital or treatment relationship exists.
+4. **same_hospital** — clinician's home hospital matches patient's registering hospital (`user.hospital == patient.registered_at_hospital`), provided consent was not revoked.
+5. **treatment_relationship** — active, unexpired `TreatmentRelationship` exists between the clinician and patient.
+6. **patient_consent** — active, explicit `PatientConsent` granted by the patient for the clinician's hospital (`granted=True`, `revoked_at is None`).
+7. **denied** — all other cases fail closed (`allowed=False, basis="denied"`). Any unexpected runtime exception also fails closed with `basis="error"`.
 
-On denial, the frontend shows the break-glass flow (minimum 20-char justification, TOTP re-verification if MFA enforced).
+On denial, the frontend routes the clinician to the access-denied view with an option to initiate the break-glass flow (minimum 20-character clinical justification, acknowledgment checkbox, and TOTP MFA re-verification if MFA is enforced).
+
+### Patient consent evaluation & statutory compliance
+In accordance with health data governance standards and the Ghana Data Protection Act 2012 (Act 843):
+- **Opt-in / Direct Grant:** Patients can explicitly authorize specific hospitals to view their records (`PatientConsent`).
+- **Revocation Precedence:** Explicit revocation immediately blocks routine clinical access and same-hospital access.
+- **Emergency Exemption:** As established in emergency medical informatics ethics, Break-the-Glass (`break_glass`) strictly overrides consent revocation, logging an immutable audit record and notifying hospital administrators for retrospective review.
 
 ### Hospital workspace isolation
 Staff only see data for their own hospital. Super admins see all hospitals. The `hospital` FK on `User` is the isolation boundary. New domains (appointments, referrals, wards) all filter by `user.hospital` in views.

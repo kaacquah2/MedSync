@@ -17,6 +17,7 @@ Implement a **SHA-256 / HMAC-SHA256 hash chain** on the `AuditLog` table with ex
 - Verification: `python manage.py verify_audit_chain` recomputes every hash, validates external anchors/ledgers, and reports breaks.
 - Rebuild Safeguard: `--rebuild` permanently destroys historical tamper evidence by re-calculating hashes; it requires `--i-understand-this-destroys-tamper-evidence` and appends an immutable `REBUILD_AUDIT_CHAIN` log entry documenting the rebuild.
 - External Anchors & Append-Only Ledger: `AuditLogArchiveAnchor` models and external WORM checkpoint files/ledgers (`anchor_ledger.jsonl`) prevent retroactive tampering even if an attacker attempts a chain rebuild.
+- Retention & WORM Archive-then-Anchor: To prevent unbounded database growth without breaking hash-chain continuity, `python manage.py prune_audit_logs` exports older entries into a signed WORM JSON archive (`media/audit_archives/`), registers an `AuditLogArchiveAnchor`, and appends to `anchor_ledger.jsonl`. `verify_audit_chain` bridges active database verification directly to the archive's `last_row_hash`, preserving mathematical continuity across pruning events.
 
 Additionally, a **PostgreSQL `BEFORE UPDATE OR DELETE` trigger** (`audit/migrations/0003_auditlog_immutability_trigger.py`) raises an exception at the DB layer — a second line of defence against direct SQL modifications.
 

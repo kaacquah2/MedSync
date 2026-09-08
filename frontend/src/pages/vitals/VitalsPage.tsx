@@ -50,7 +50,68 @@ const RANGES: Record<string, VitalRange> = {
   pain_score:        { low: 0,   high: 10,  unit: "/10",          label: "Pain Score",          description: "0 = none, 10 = worst" },
 };
 
-// Custom blood glucose — extra field not in VitalSign type, stored in notes
+// ── Hard Physiological Limits (Enforced strictly on frontend & backend) ───────────
+export interface PhysiologicalBoundary {
+  min: number;
+  max: number;
+  label: string;
+  unit: string;
+}
+
+export const PHYSIOLOGICAL_BOUNDS: Record<string, PhysiologicalBoundary> = {
+  temperature:      { min: 30.0, max: 45.0, label: "Temperature",      unit: "°C" },
+  heart_rate:       { min: 20,   max: 300,  label: "Heart Rate",       unit: "bpm" },
+  bp_systolic:      { min: 50,   max: 250,  label: "BP Systolic",      unit: "mmHg" },
+  bp_diastolic:     { min: 30,   max: 150,  label: "BP Diastolic",     unit: "mmHg" },
+  spo2:             { min: 50,   max: 100,  label: "SpO₂",             unit: "%" },
+  pain_score:       { min: 0,    max: 10,   label: "Pain Score",       unit: "/10" },
+  respiratory_rate: { min: 4,    max: 80,   label: "Respiratory Rate", unit: "br/min" },
+  weight_kg:        { min: 0.5,  max: 500,  label: "Weight",           unit: "kg" },
+};
+
+export const GLUCOSE_BOUNDS = { min: 0.5, max: 50, label: "Blood Glucose", unit: "mmol/L" };
+
+export interface VitalsFormValues {
+  bp_systolic: number | undefined;
+  bp_diastolic: number | undefined;
+  temperature: number | undefined;
+  heart_rate: number | undefined;
+  respiratory_rate: number | undefined;
+  spo2: number | undefined;
+  weight_kg: number | undefined;
+  pain_score: number | undefined;
+}
+
+export function validateVitalsForm(values: VitalsFormValues): Record<string, string | null> {
+  const errors: Record<string, string | null> = {};
+
+  for (const [key, bounds] of Object.entries(PHYSIOLOGICAL_BOUNDS)) {
+    const val = values[key as keyof VitalsFormValues];
+    if (val !== undefined && val !== null && !isNaN(val)) {
+      if (val < bounds.min || val > bounds.max) {
+        errors[key] = `${bounds.label} must be between ${bounds.min} and ${bounds.max} ${bounds.unit}.`;
+      }
+    }
+  }
+
+  // Cross-field validation: Systolic must be strictly greater than Diastolic
+  if (
+    values.bp_systolic !== undefined &&
+    values.bp_systolic !== null &&
+    values.bp_diastolic !== undefined &&
+    values.bp_diastolic !== null &&
+    !isNaN(values.bp_systolic) &&
+    !isNaN(values.bp_diastolic)
+  ) {
+    if (values.bp_systolic <= values.bp_diastolic) {
+      errors.bp_systolic = "Systolic blood pressure must be greater than diastolic blood pressure.";
+    }
+  }
+
+  return errors;
+}
+
+// Blood glucose range definition (GLUCOSE_BOUNDS 0.5–50 mmol/L)
 const GLUCOSE_RANGE: VitalRange = { low: 3.9, high: 7.8, unit: "mmol/L", label: "Blood Glucose", description: "Normal fasting: 3.9–7.8 mmol/L" };
 
 function isOutOfRange(value: number | undefined, range: VitalRange): boolean {
@@ -65,11 +126,13 @@ function RangeHighlightInput({
   range,
   value,
   onChange,
+  error,
 }: {
   field: string;
   range: VitalRange;
   value: number | undefined;
   onChange: (v: number | string) => void;
+  error?: React.ReactNode;
 }) {
   const out = isOutOfRange(value, range);
   return (
@@ -89,11 +152,18 @@ function RangeHighlightInput({
         onChange={onChange}
         step={field === "temperature" ? 0.1 : 1}
         decimalScale={field === "temperature" ? 1 : 0}
-        styles={out ? { input: { borderColor: "var(--accent-red)", background: "var(--bg-red)", color: "var(--accent-red)", fontWeight: 600 } } : {}}
-        rightSection={out ? <IconAlertTriangle size={16} color="var(--accent-red)" /> : null}
+        styles={
+          error
+            ? {}
+            : out
+            ? { input: { borderColor: "var(--accent-red)", background: "var(--bg-red)", color: "var(--accent-red)", fontWeight: 600 } }
+            : {}
+        }
+        rightSection={!error && out ? <IconAlertTriangle size={16} color="var(--accent-red)" /> : null}
+        error={error}
         min={0}
       />
-      {out && (
+      {!error && out && (
         <Text size="xs" c="var(--accent-red)" fw={600} mt={2}>
           ⚠ Outside normal range ({range.low}–{range.high} {range.unit})
         </Text>
@@ -131,6 +201,7 @@ export function VitalsPage() {
   const [patientSearch, setPatientSearch] = useState("");
   const [selectedNhid, setSelectedNhid] = useState<string | null>(null);
   const [glucose, setGlucose] = useState<number | undefined>();
+  const [glucoseError, setGlucoseError] = useState<string | null>(null);
 
   const { data: searchData, isLoading: searching } = useQuery({
     queryKey: ["vitals-patient-search", patientSearch],
@@ -150,16 +221,7 @@ export function VitalsPage() {
     label: `${p.full_name} — ${p.universal_id}`,
   })) ?? [];
 
-  const form = useForm<{
-    bp_systolic: number | undefined;
-    bp_diastolic: number | undefined;
-    temperature: number | undefined;
-    heart_rate: number | undefined;
-    respiratory_rate: number | undefined;
-    spo2: number | undefined;
-    weight_kg: number | undefined;
-    pain_score: number | undefined;
-  }>({
+  const form = useForm<VitalsFormValues>({
     initialValues: {
       bp_systolic:      undefined,
       bp_diastolic:     undefined,
@@ -170,17 +232,29 @@ export function VitalsPage() {
       weight_kg:        undefined,
       pain_score:       undefined,
     },
+    validate: validateVitalsForm,
   });
 
   const anyAbnormal = (Object.keys(RANGES) as (keyof typeof RANGES)[]).some((k) =>
     isOutOfRange(form.values[k as keyof typeof form.values] as number | undefined, RANGES[k])
   ) || isOutOfRange(glucose, GLUCOSE_RANGE);
 
+  const handleGlucoseChange = (v: number | string) => {
+    const val = v === "" ? undefined : (v as number);
+    setGlucose(val);
+    if (val !== undefined && !isNaN(val) && (val < GLUCOSE_BOUNDS.min || val > GLUCOSE_BOUNDS.max)) {
+      setGlucoseError(`Blood glucose must be between ${GLUCOSE_BOUNDS.min} and ${GLUCOSE_BOUNDS.max} mmol/L.`);
+    } else {
+      setGlucoseError(null);
+    }
+  };
+
   const mutation = useMutation({
     mutationFn: () => {
       if (!selectedNhid) throw new Error("No patient selected.");
       return createVitalSign(selectedNhid, {
         ...form.values,
+        blood_glucose: glucose,
         recorded_at: new Date().toISOString(),
       });
     },
@@ -188,10 +262,22 @@ export function VitalsPage() {
       notifications.show({ color: "green", icon: <IconCheck />, message: "Vitals recorded." });
       form.reset();
       setGlucose(undefined);
+      setGlucoseError(null);
       qc.invalidateQueries({ queryKey: ["patient-vitals", selectedNhid] });
     },
     onError: (e: unknown) =>
       notifications.show({ color: "red", message: formatApiError(e, "Failed to record vitals.") }),
+  });
+
+  const handleSubmit = form.onSubmit(() => {
+    if (glucoseError) return;
+    const values = form.values;
+    const hasAtLeastOne = Object.values(values).some((v) => v !== undefined && v !== null && v !== "");
+    if (!hasAtLeastOne && glucose === undefined) {
+      notifications.show({ color: "red", message: "Please enter at least one vital sign observation." });
+      return;
+    }
+    mutation.mutate();
   });
 
   return (
@@ -233,28 +319,82 @@ export function VitalsPage() {
             />
 
             <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-              <RangeHighlightInput field="bp_systolic"  range={RANGES.bp_systolic}  value={form.values.bp_systolic}  onChange={(v) => form.setFieldValue("bp_systolic",  v as number)} />
-              <RangeHighlightInput field="bp_diastolic" range={RANGES.bp_diastolic} value={form.values.bp_diastolic} onChange={(v) => form.setFieldValue("bp_diastolic", v as number)} />
-              <RangeHighlightInput field="temperature"  range={RANGES.temperature}  value={form.values.temperature}  onChange={(v) => form.setFieldValue("temperature",  v as number)} />
-              <RangeHighlightInput field="heart_rate"   range={RANGES.heart_rate}   value={form.values.heart_rate}   onChange={(v) => form.setFieldValue("heart_rate",   v as number)} />
-              <RangeHighlightInput field="respiratory_rate" range={RANGES.respiratory_rate} value={form.values.respiratory_rate} onChange={(v) => form.setFieldValue("respiratory_rate", v as number)} />
-              <RangeHighlightInput field="spo2"         range={RANGES.spo2}         value={form.values.spo2}         onChange={(v) => form.setFieldValue("spo2",         v as number)} />
-              <RangeHighlightInput field="weight_kg"    range={RANGES.weight_kg}    value={form.values.weight_kg}    onChange={(v) => form.setFieldValue("weight_kg",    v as number)} />
-              <RangeHighlightInput field="pain_score"   range={RANGES.pain_score}   value={form.values.pain_score}   onChange={(v) => form.setFieldValue("pain_score",   v as number)} />
+              <RangeHighlightInput
+                field="bp_systolic"
+                range={RANGES.bp_systolic}
+                value={form.values.bp_systolic}
+                onChange={(v) => form.setFieldValue("bp_systolic", v === "" ? undefined : (v as number))}
+                error={form.errors.bp_systolic}
+              />
+              <RangeHighlightInput
+                field="bp_diastolic"
+                range={RANGES.bp_diastolic}
+                value={form.values.bp_diastolic}
+                onChange={(v) => form.setFieldValue("bp_diastolic", v === "" ? undefined : (v as number))}
+                error={form.errors.bp_diastolic}
+              />
+              <RangeHighlightInput
+                field="temperature"
+                range={RANGES.temperature}
+                value={form.values.temperature}
+                onChange={(v) => form.setFieldValue("temperature", v === "" ? undefined : (v as number))}
+                error={form.errors.temperature}
+              />
+              <RangeHighlightInput
+                field="heart_rate"
+                range={RANGES.heart_rate}
+                value={form.values.heart_rate}
+                onChange={(v) => form.setFieldValue("heart_rate", v === "" ? undefined : (v as number))}
+                error={form.errors.heart_rate}
+              />
+              <RangeHighlightInput
+                field="respiratory_rate"
+                range={RANGES.respiratory_rate}
+                value={form.values.respiratory_rate}
+                onChange={(v) => form.setFieldValue("respiratory_rate", v === "" ? undefined : (v as number))}
+                error={form.errors.respiratory_rate}
+              />
+              <RangeHighlightInput
+                field="spo2"
+                range={RANGES.spo2}
+                value={form.values.spo2}
+                onChange={(v) => form.setFieldValue("spo2", v === "" ? undefined : (v as number))}
+                error={form.errors.spo2}
+              />
+              <RangeHighlightInput
+                field="weight_kg"
+                range={RANGES.weight_kg}
+                value={form.values.weight_kg}
+                onChange={(v) => form.setFieldValue("weight_kg", v === "" ? undefined : (v as number))}
+                error={form.errors.weight_kg}
+              />
+              <RangeHighlightInput
+                field="pain_score"
+                range={RANGES.pain_score}
+                value={form.values.pain_score}
+                onChange={(v) => form.setFieldValue("pain_score", v === "" ? undefined : (v as number))}
+                error={form.errors.pain_score}
+              />
             </SimpleGrid>
 
             {/* Blood glucose — extra field */}
-            <RangeHighlightInput field="glucose" range={GLUCOSE_RANGE} value={glucose} onChange={(v) => setGlucose(v as number)} />
+            <RangeHighlightInput
+              field="glucose"
+              range={GLUCOSE_RANGE}
+              value={glucose}
+              onChange={handleGlucoseChange}
+              error={glucoseError}
+            />
 
             <Group justify="flex-end" mt="xs">
-              <Button variant="subtle" onClick={() => { form.reset(); setGlucose(undefined); }}>
+              <Button variant="subtle" onClick={() => { form.reset(); setGlucose(undefined); setGlucoseError(null); }}>
                 Clear
               </Button>
               <Button
                 color="pink"
                 leftSection={<IconCheck size={16} />}
                 loading={mutation.isPending}
-                onClick={() => mutation.mutate()}
+                onClick={() => handleSubmit()}
                 disabled={!selectedNhid}
               >
                 Save Vitals
@@ -307,6 +447,11 @@ export function VitalsPage() {
                     {v.weight_kg && (
                       <Badge size="sm" color="gray" variant="light">
                         Wt {v.weight_kg} kg
+                      </Badge>
+                    )}
+                    {v.blood_glucose && (
+                      <Badge size="sm" color={isOutOfRange(v.blood_glucose, GLUCOSE_RANGE) ? "red" : "orange"} variant="light">
+                        BG {v.blood_glucose} mmol/L
                       </Badge>
                     )}
                   </Group>

@@ -22,7 +22,11 @@ Configuration:
      - Zero PHI leaves the server.
 
   2. Development only (Gemini):
-     - Requires DEBUG=True (or explicit ALLOW_EXTERNAL_AI_IN_PRODUCTION=True opt-in).
+     - Requires DEBUG=True.
+     - ALLOW_EXTERNAL_AI_IN_PRODUCTION MUST be False in any real production deployment.
+       Overriding this flag to True enables cross-border egress of special personal health
+       data to Google cloud APIs, violating Ghana Data Protection Act 2012 (Act 843 §47)
+       without prior Data Protection Commission (DPC) transfer authorization.
      - Add GEMINI_API_KEY=<key> to your .env
      - Set AI_PROVIDER=gemini
 """
@@ -359,15 +363,20 @@ def query_patient(patient, encounters, records, vitals, question: str) -> dict:
     provider = getattr(settings, "AI_PROVIDER", "ollama")
 
     if provider == "gemini":
-        if not getattr(settings, "DEBUG", False) and not getattr(
-            settings, "ALLOW_EXTERNAL_AI_IN_PRODUCTION", False
-        ):
-            raise RuntimeError(
-                "The Gemini AI provider transmits Protected Health Information (PHI) to external Google "
-                "servers without a BAA/DPA and is restricted to development/testing environments (DEBUG=True). "
-                "Production deployments must use AI_PROVIDER=ollama for zero-egress local processing "
-                "under HIPAA and Ghana Data Protection Act 2012."
-            )
+        if not getattr(settings, "DEBUG", False):
+            if not getattr(settings, "ALLOW_EXTERNAL_AI_IN_PRODUCTION", False):
+                raise RuntimeError(
+                    "The Gemini AI provider transmits Protected Health Information (PHI) to external Google "
+                    "servers without a BAA/DPA and is restricted to development/testing environments (DEBUG=True). "
+                    "Production deployments must use AI_PROVIDER=ollama for zero-egress local processing "
+                    "under HIPAA and Ghana Data Protection Act 2012 (Act 843 §47)."
+                )
+            else:
+                logger.critical(
+                    "COMPLIANCE VIOLATION RISK: ALLOW_EXTERNAL_AI_IN_PRODUCTION=True overrides production safety checks "
+                    "to transmit clinical health records to external Google Gemini endpoints. This constitutes an "
+                    "unauthorized cross-border transfer of special personal data under Ghana Data Protection Act 2012 (Act 843 §47)."
+                )
         if not getattr(settings, "GEMINI_API_KEY", ""):
             raise RuntimeError(
                 "AI service is not configured. "

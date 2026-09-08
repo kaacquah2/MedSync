@@ -31,12 +31,13 @@ sequenceDiagram
     L->>S: Record lab result (LOINC code)
     S-->>L: Lab result saved; audit: CREATE_LAB_RESULT
 
-    D->>S: View complete record
+    D->>S: View complete record & review encounter
     S-->>D: Patient + all Encounters decrypted; audit: VIEW_PATIENT
-
-    D->>S: Discharge (encounter closed / status updated)
-    S-->>D: Encounter finalised
+    Note over D,S: Encounter persisted chronologically (Status: OPEN)<br/>Administrative discharge is scoped for Phase 2
 ```
+
+> **Architectural Scope Boundary — Encounter Lifecycle vs. Immutability:**
+> In the current system, clinical encounters persist as immutable, append-only chronological consultation records created with default status `OPEN`. The prototype focuses on immutable chronological encounter creation; administrative discharge and status transitions (`COMPLETED`, `SIGNED_OFF`) represent a planned Phase 2 administrative lifecycle extension. This design prevents retrospective chart alteration and guarantees complete chronological auditability.
 
 ---
 
@@ -63,7 +64,7 @@ sequenceDiagram
     SB-->>DB: Patient found in search results
     DB->>SB: GET /patients/<NHID>/ (request detail)
     SB->>SB: can_access_patient(Doctor B, Patient)?
-    SB->>SB: same_hospital? NO. treatment_rel? NO. break_glass? NO.
+    SB->>SB: admin? NO. break_glass? NO. same_hospital? NO. treatment_rel? NO. consent? NO.
     SB-->>DB: ACCESS_DENIED → redirect to /access-denied/<NHID>/
     SB->>SB: Audit: ACCESS_DENIED
 

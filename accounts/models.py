@@ -26,6 +26,12 @@ def hash_recovery_code(code: str) -> str:
     return hmac.new(key, code.strip().encode(), hashlib.sha256).hexdigest()
 
 
+def hash_email_otp(code: str) -> str:
+    """Keyed HMAC-SHA256 of the 6-digit email OTP using SECRET_KEY."""
+    key = settings.SECRET_KEY.encode()
+    return hmac.new(key, code.strip().encode(), hashlib.sha256).hexdigest()
+
+
 class User(AbstractUser):
     class Role(models.TextChoices):
         SUPER_ADMIN = "super_admin", "Super Admin"
@@ -76,6 +82,14 @@ class User(AbstractUser):
             self.Role.NURSE,
             self.Role.LAB_TECHNICIAN,
         )
+
+    @property
+    def is_super_admin(self) -> bool:
+        return self.role == self.Role.SUPER_ADMIN or bool(self.is_superuser)
+
+    @property
+    def is_hospital_admin(self) -> bool:
+        return self.role == self.Role.HOSPITAL_ADMIN
 
     @property
     def is_admin_level(self) -> bool:
@@ -181,7 +195,7 @@ class EmailOTPManager(models.Manager):
 
         code_int = secrets.randbelow(1000000)
         plaintext_code = f"{code_int:06d}"
-        code_hash = hashlib.sha256(plaintext_code.encode()).hexdigest()
+        code_hash = hash_email_otp(plaintext_code)
         expires_at = timezone.now() + timezone.timedelta(minutes=EMAIL_OTP_EXPIRY_MINUTES)
 
         self.create(user=user, code_hash=code_hash, expires_at=expires_at, attempts=0)
@@ -208,8 +222,9 @@ class EmailOTPManager(models.Manager):
             otp.save(update_fields=["used", "used_at"])
             return False
 
-        code_hash = hashlib.sha256(code_str.encode()).hexdigest()
-        if secrets.compare_digest(code_hash, otp.code_hash):
+        code_hash = hash_email_otp(code_str)
+        legacy_hash = hashlib.sha256(code_str.encode()).hexdigest()
+        if secrets.compare_digest(code_hash, otp.code_hash) or secrets.compare_digest(legacy_hash, otp.code_hash):
             otp.used = True
             otp.used_at = now
             otp.save(update_fields=["used", "used_at"])
@@ -228,7 +243,7 @@ class EmailOTPManager(models.Manager):
 class EmailOTP(models.Model):
     """
     A temporary 6-digit Email One-Time Password (OTP) for MFA verification.
-    Valid for 10 minutes; hashed at rest (SHA-256).
+    Valid for 10 minutes; hashed at rest using keyed HMAC-SHA256 (SECRET_KEY).
     """
 
     user = models.ForeignKey(
@@ -238,7 +253,7 @@ class EmailOTP(models.Model):
     )
     code_hash = models.CharField(
         max_length=64,
-        help_text="SHA-256 hex digest of the 6-digit email OTP.",
+        help_text="Keyed HMAC-SHA256 hex digest of the 6-digit email OTP.",
     )
     attempts = models.PositiveSmallIntegerField(
         default=0,

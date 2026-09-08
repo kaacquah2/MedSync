@@ -482,9 +482,27 @@ class TestProxySecuritySettings:
         assert response.status_code == 200
 
         # Insecure request: redirects to https (301 Moved Permanently)
-        request_insecure = rf.get("/healthz/")
+        request_insecure = rf.get("/api/patients/")
         response_insecure = middleware(request_insecure)
         assert response_insecure.status_code == 301
+
+    def test_healthcheck_exempt_from_ssl_redirect(self, rf, settings):
+        from django.http import HttpResponse
+        from django.middleware.security import SecurityMiddleware
+
+        settings.SECURE_SSL_REDIRECT = True
+        settings.SECURE_REDIRECT_EXEMPT = [r"^healthz/"]
+        middleware = SecurityMiddleware(get_response=lambda req: HttpResponse("OK"))
+
+        # Internal container healthcheck probe over plain HTTP is exempt (no 301 redirect crash loop)
+        request_health = rf.get("/healthz/")
+        response_health = middleware(request_health)
+        assert response_health.status_code == 200
+
+        # Non-exempt endpoints are still redirected to HTTPS
+        request_api = rf.get("/api/patients/")
+        response_api = middleware(request_api)
+        assert response_api.status_code == 301
 
 
 class TestAuditMiddleware:

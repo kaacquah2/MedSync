@@ -1,5 +1,6 @@
 """Scheduling app — Appointments."""
 
+from django.core.exceptions import ValidationError
 from django.db import models
 
 from core.fields import EncryptedTextField
@@ -23,6 +24,12 @@ class Appointment(TimeStampedModel):
         PROCEDURE = "procedure", "Procedure / Intervention"
         LAB = "lab", "Laboratory Visit"
         EMERGENCY = "emergency", "Emergency"
+
+    class TriageAcuity(models.TextChoices):
+        RED = "RED", "Red - Resuscitation"
+        ORANGE = "ORANGE", "Orange - Emergent"
+        YELLOW = "YELLOW", "Yellow - Urgent"
+        GREEN = "GREEN", "Green - Non-urgent"
 
     patient = models.ForeignKey(
         "patients.Patient", on_delete=models.PROTECT, related_name="appointments"
@@ -50,8 +57,23 @@ class Appointment(TimeStampedModel):
         max_length=15, choices=AppointmentType.choices, default=AppointmentType.OUTPATIENT
     )
     status = models.CharField(max_length=15, choices=Status.choices, default=Status.SCHEDULED)
+    triage_acuity = models.CharField(
+        max_length=10,
+        choices=TriageAcuity.choices,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="South African / Manchester Triage Scale acuity level (RED, ORANGE, YELLOW, GREEN).",
+    )
     reason = EncryptedTextField(blank=True, verbose_name="Reason for visit")
     notes = EncryptedTextField(blank=True, verbose_name="Administrative notes")
+
+    def clean(self):
+        super().clean()
+        if self.appointment_type == self.AppointmentType.EMERGENCY and not self.triage_acuity:
+            raise ValidationError(
+                {"triage_acuity": "Triage acuity is mandatory for emergency appointments."}
+            )
 
     class Meta:
         ordering = ["scheduled_for"]

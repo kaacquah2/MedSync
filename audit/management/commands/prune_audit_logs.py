@@ -10,14 +10,17 @@ from core.rls import rls_bypass
 
 
 class Command(BaseCommand):
-    help = "Prune audit log entries older than a specified number of days (default: 30)."
+    help = (
+        "Archive and prune audit log entries older than a specified number of days (default: 30) "
+        "using the Archive-then-Anchor WORM pattern to preserve hash-chain continuity."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--days",
             type=int,
             default=30,
-            help="Prune entries older than this many days (default: 30).",
+            help="Archive and prune entries older than this many days (default: 30).",
         )
         parser.add_argument(
             "--force",
@@ -45,8 +48,10 @@ class Command(BaseCommand):
         if not force:
             self.stdout.write(
                 self.style.WARNING(
-                    f"You are about to delete {count} audit log entries older than {days} days (cutoff: {cutoff}).\n"
-                    "WARNING: Deleting rows breaks the SHA-256 hash chain validation for remaining entries."
+                    f"You are about to archive and prune {count} audit log entries older than {days} days (cutoff: {cutoff}).\n"
+                    "NOTE: To preserve SHA-256 hash-chain continuity, entries will be serialized into a signed WORM JSON "
+                    "archive in media/audit_archives/, registered in AuditLogArchiveAnchor, and committed to anchor_ledger.jsonl "
+                    "before database rows are pruned."
                 )
             )
             confirm = input("Are you sure you want to proceed? [y/N]: ").strip().lower()

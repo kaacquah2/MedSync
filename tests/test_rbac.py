@@ -113,6 +113,27 @@ class TestEncounterDetailRBAC:
         resp = client_as_doctor_a.get(f"/api/encounters/{encounter_a.pk}/")
         assert resp.status_code == 200
 
+    def test_nurse_can_view_encounter_detail(self, client, nurse_a, encounter_a):
+        client.force_login(nurse_a)
+        resp = client.get(f"/api/encounters/{encounter_a.pk}/")
+        assert resp.status_code == 200
+
+    def test_lab_tech_cannot_view_encounter_detail(self, client, db, hospital_a, encounter_a):
+        from accounts.models import User
+        lab_tech = User.objects.create_user(
+            username="labtech_enc_test",
+            password="Test@password1",
+            role="lab_technician",
+            hospital=hospital_a,
+        )
+        client.force_login(lab_tech)
+        resp = client.get(f"/api/encounters/{encounter_a.pk}/")
+        assert resp.status_code == 403
+
+    def test_hospital_admin_cannot_view_encounter_detail(self, client_as_hospital_admin_a, encounter_a):
+        resp = client_as_hospital_admin_a.get(f"/api/encounters/{encounter_a.pk}/")
+        assert resp.status_code == 403
+
 
 class TestBreakGlassRBAC:
     def setup_method(self):

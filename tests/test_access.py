@@ -50,6 +50,20 @@ class TestCanAccessPatient:
         assert decision
         assert decision.basis == "admin"
 
+    def test_hospital_admin_same_hospital_allowed(self, db, hospital_admin_a, patient_a):
+        from access.permissions import can_access_patient
+
+        decision = can_access_patient(hospital_admin_a, patient_a)
+        assert decision
+        assert decision.basis == "admin"
+
+    def test_hospital_admin_cross_hospital_denied(self, db, hospital_admin_b, patient_a):
+        from access.permissions import can_access_patient
+
+        decision = can_access_patient(hospital_admin_b, patient_a)
+        assert not decision
+        assert decision.basis == "denied"
+
     def test_same_hospital_allowed(self, db, doctor_a, patient_a):
         from access.permissions import can_access_patient
 
@@ -136,6 +150,14 @@ class TestPatientDetailGate:
     def test_sysadmin_allowed_everywhere(self, client_as_sysadmin, patient_a):
         resp = client_as_sysadmin.get(f"/api/patients/{patient_a.universal_id}/")
         assert resp.status_code == 200
+
+    def test_hospital_admin_same_hospital_allowed(self, client_as_hospital_admin_a, patient_a):
+        resp = client_as_hospital_admin_a.get(f"/api/patients/{patient_a.universal_id}/")
+        assert resp.status_code == 200
+
+    def test_hospital_admin_cross_hospital_denied(self, client_as_hospital_admin_b, patient_a):
+        resp = client_as_hospital_admin_b.get(f"/api/patients/{patient_a.universal_id}/")
+        assert resp.status_code == 403
 
     def test_cross_hospital_with_treatment_rel_allowed(
         self, client_as_doctor_b, doctor_b, patient_a, hospital_b
@@ -298,3 +320,101 @@ class TestEnsureTreatmentRelationship:
         assert (
             TreatmentRelationship.objects.filter(clinician=doctor_b, patient=patient_a).count() == 1
         )
+
+
+class TestPatientConsentApi:
+    def test_grant_and_revoke_consent_via_api(self, client_as_doctor_b, doctor_b, patient_a, hospital_b):
+        from access.models import PatientConsent
+
+        # 1. Grant consent
+        res = client_as_doctor_b.post(
+            "/api/consents/",
+            json.dumps({"patient": patient_a.universal_id, "hospital": hospital_b.pk, "notes": "Consent for specialist"}),
+            content_type="application/json",
+        )
+        assert res.status_code in (200, 201)
+        consent_id = res.json()["id"]
+
+        # Verify can_access_patient now allows cross-hospital doctor_b
+        from access.permissions import can_access_patient
+        decision = can_access_patient(doctor_b, patient_a)
+        assert decision
+        assert decision.basis == "patient_consent"
+
+        # 2. List consents
+        res_list = client_as_doctor_b.get(f"/api/consents/?patient={patient_a.universal_id}")
+        assert res_list.status_code == 200
+        assert len(res_list.json()) >= 1
+
+        # 3. Revoke consent via PATCH
+        res_patch = client_as_doctor_b.patch(
+            f"/api/consents/{consent_id}/",
+            json.dumps({"granted": False}),
+            content_type="application/json",
+        )
+        assert res_patch.status_code == 200
+        assert res_patch.json()["granted"] is False
+
+        # Verify can_access_patient now denies doctor_b
+        decision_revoked = can_access_patient(doctor_b, patient_a)
+        assert not decision_revoked
+
+
+class TestReferralAcceptanceTreatmentRelationship:
+    def test_accepted_referral_creates_treatment_relationship(
+        self, client_as_doctor_b, doctor_b, patient_a, hospital_a, hospital_b, doctor_a
+    ):
+        from access.models import TreatmentRelationship
+        from referrals.models import Referral
+
+        ref = Referral.objects.create(
+            patient=patient_a,
+            from_hospital=hospital_a,
+            to_hospital=hospital_b,
+            from_provider=doctor_a,
+            reason="Cardiology evaluation",
+        )
+
+        res = client_as_doctor_b.patch(
+            f"/api/referrals/{ref.pk}/status/",
+            json.dumps({"status": "accepted", "status_notes": "Accepted for OPD"}),
+            content_type="application/json",
+        )
+        assert res.status_code == 200
+        assert TreatmentRelationship.objects.filter(clinician=doctor_b, patient=patient_a).exists()
+
+
+class TestBreakGlassSetNull:
+    def test_deleting_actor_preserves_break_glass_access(self, db, doctor_b, patient_a):
+        from access.models import BreakGlassAccess
+
+        bg = BreakGlassAccess.objects.create(
+            actor=doctor_b,
+            patient=patient_a,
+            reason="Emergency access",
+            created_at=timezone.now(),
+            expires_at=timezone.now() + timedelta(hours=1),
+        )
+        doctor_b_pk = doctor_b.pk
+        doctor_b.delete()
+
+        bg.refresh_from_db()
+        assert bg.actor is None
+        assert bg.patient == patient_a
+
+    def test_deleting_patient_protected_when_break_glass_exists(self, db, doctor_b, patient_a):
+        import pytest
+        from django.db.models import ProtectedError
+        from access.models import BreakGlassAccess
+
+        BreakGlassAccess.objects.create(
+            actor=doctor_b,
+            patient=patient_a,
+            reason="Emergency access protection test",
+            created_at=timezone.now(),
+            expires_at=timezone.now() + timedelta(hours=1),
+        )
+
+        with pytest.raises(ProtectedError):
+            patient_a.delete()
+

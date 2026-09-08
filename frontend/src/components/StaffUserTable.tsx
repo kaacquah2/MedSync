@@ -151,7 +151,7 @@ export function StaffUserTable({ scope }: StaffUserTableProps) {
         /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? null : "Valid email required",
       role:     (v) => v ? null : "Role is required",
       password: (v) =>
-        v.length >= 8 ? null : "Password must be at least 8 characters",
+        v.length >= 12 ? null : "Password must be at least 12 characters",
     },
   });
 
@@ -188,7 +188,7 @@ export function StaffUserTable({ scope }: StaffUserTableProps) {
     initialValues: { password: "" },
     validate: {
       password: (v) =>
-        v.length >= 8 ? null : "Password must be at least 8 characters",
+        v.length >= 12 ? null : "Password must be at least 12 characters",
     },
   });
 
@@ -503,7 +503,7 @@ export function StaffUserTable({ scope }: StaffUserTableProps) {
             )}
             <PasswordInput
               label="Initial password"
-              placeholder="Minimum 8 characters"
+              placeholder="Minimum 12 characters"
               required
               description="The staff member should change this on first login."
               {...createForm.getInputProps("password")}
@@ -553,7 +553,7 @@ export function StaffUserTable({ scope }: StaffUserTableProps) {
             </Text>
             <PasswordInput
               label="New temporary password"
-              placeholder="Minimum 8 characters"
+              placeholder="Minimum 12 characters"
               required
               {...resetForm.getInputProps("password")}
             />

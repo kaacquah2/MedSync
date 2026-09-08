@@ -63,6 +63,10 @@ from api.views.records import (
     PatientRecordsSummaryView,
     PrescriptionCreateView,
 )
+from api.views.consent_views import (
+    PatientConsentDetailView,
+    PatientConsentListCreateView,
+)
 from api.views.referrals_views import ReferralListCreateView, ReferralStatusView
 from api.views.shifts_views import (
     HandoverAcknowledgeView,
@@ -212,6 +216,9 @@ urlpatterns = [
     # ── Referrals ─────────────────────────────────────────────────────────────
     path("referrals/", ReferralListCreateView.as_view(), name="api-referrals"),
     path("referrals/<int:pk>/status/", ReferralStatusView.as_view(), name="api-referral-status"),
+    # ── Consents ──────────────────────────────────────────────────────────────
+    path("consents/", PatientConsentListCreateView.as_view(), name="api-consents"),
+    path("consents/<int:pk>/", PatientConsentDetailView.as_view(), name="api-consent-detail"),
     # ── Wards & Beds ──────────────────────────────────────────────────────────
     path("wards/", WardListCreateView.as_view(), name="api-wards"),
     path("wards/<int:pk>/", WardDetailView.as_view(), name="api-ward-detail"),

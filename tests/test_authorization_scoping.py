@@ -160,3 +160,9 @@ class TestAuthorizationScoping:
             content_type="application/json",
         )
         assert resp.status_code == 403
+
+    def test_ward_detail_cross_hospital_denied(self, client, admin_b, ward_a):
+        client.force_login(admin_b)
+        resp = client.get(f"/api/wards/{ward_a.pk}/")
+        assert resp.status_code == 403
+

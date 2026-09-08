@@ -15,7 +15,14 @@ from accounts.models import User
 from audit.models import AuditLog
 from hospitals.models import Hospital
 from patients.models import Patient, PatientAlert
-from records.models import Diagnosis, Encounter, LabResult, MedicationAdministration, Prescription
+from records.models import (
+    Diagnosis,
+    Encounter,
+    LabOrder,
+    LabResult,
+    MedicationAdministration,
+    Prescription,
+)
 from records.validators import validate_icd10, validate_loinc, validate_rxnorm, validate_snomed
 
 # ── Shared helpers ─────────────────────────────────────────────────────────────
@@ -353,6 +360,9 @@ class DiagnosisSerializer(serializers.ModelSerializer):
     snomed_code = serializers.CharField(
         required=False, allow_blank=True, validators=[validate_snomed]
     )
+    confidentiality_display = serializers.CharField(
+        source="get_confidentiality_display", read_only=True
+    )
 
     class Meta:
         model = Diagnosis
@@ -362,10 +372,12 @@ class DiagnosisSerializer(serializers.ModelSerializer):
             "snomed_code",
             "description",
             "is_primary",
+            "confidentiality",
+            "confidentiality_display",
             "created_by",
             "created_at",
         ]
-        read_only_fields = ["id", "created_by", "created_at"]
+        read_only_fields = ["id", "created_by", "created_at", "confidentiality_display"]
 
     def get_created_by(self, obj):
         return _user_stub(obj.created_by)
@@ -375,6 +387,9 @@ class PrescriptionSerializer(serializers.ModelSerializer):
     created_by = serializers.SerializerMethodField()
     rxnorm_code = serializers.CharField(
         required=False, allow_blank=True, validators=[validate_rxnorm]
+    )
+    allergy_override_reason = serializers.CharField(
+        required=False, allow_blank=True
     )
 
     class Meta:
@@ -386,6 +401,7 @@ class PrescriptionSerializer(serializers.ModelSerializer):
             "dosage",
             "frequency",
             "instructions",
+            "allergy_override_reason",
             "created_by",
             "created_at",
         ]
@@ -401,22 +417,50 @@ class LabResultSerializer(serializers.ModelSerializer):
     loinc_code = serializers.CharField(
         required=False, allow_blank=True, validators=[validate_loinc]
     )
+    order_id = serializers.PrimaryKeyRelatedField(
+        queryset=LabOrder.objects.all(),
+        source="order",
+        required=False,
+        allow_null=True,
+    )
+    notify_doctor = serializers.BooleanField(
+        write_only=True,
+        required=False,
+        default=False,
+    )
+    doctor_notified = serializers.SerializerMethodField()
+    doctor_name = serializers.SerializerMethodField()
+    patient_alert_id = serializers.SerializerMethodField()
 
     class Meta:
         model = LabResult
         fields = [
             "id",
+            "order_id",
             "test_name",
             "loinc_code",
             "result_value",
             "reference_range",
             "is_abnormal",
+            "is_critical",
             "performed_at",
+            "notify_doctor",
+            "doctor_notified",
+            "doctor_name",
+            "patient_alert_id",
             "created_by",
             "patient_nhid",
             "created_at",
         ]
-        read_only_fields = ["id", "created_by", "patient_nhid", "created_at"]
+        read_only_fields = [
+            "id",
+            "created_by",
+            "patient_nhid",
+            "created_at",
+            "doctor_notified",
+            "doctor_name",
+            "patient_alert_id",
+        ]
 
     def get_created_by(self, obj):
         return _user_stub(obj.created_by)
@@ -426,6 +470,15 @@ class LabResultSerializer(serializers.ModelSerializer):
             return obj.encounter.patient.universal_id
         except Exception:
             return None
+
+    def get_doctor_notified(self, obj):
+        return getattr(obj, "_doctor_notified", False)
+
+    def get_doctor_name(self, obj):
+        return getattr(obj, "_doctor_name", None)
+
+    def get_patient_alert_id(self, obj):
+        return getattr(obj, "_patient_alert_id", None)
 
 
 class EncounterSerializer(serializers.ModelSerializer):
@@ -440,6 +493,9 @@ class EncounterSerializer(serializers.ModelSerializer):
     prescriptions = PrescriptionSerializer(many=True, read_only=True)
     lab_results = LabResultSerializer(many=True, read_only=True)
     is_cross_hospital = serializers.SerializerMethodField()
+    confidentiality_display = serializers.CharField(
+        source="get_confidentiality_display", read_only=True
+    )
 
     class Meta:
         model = Encounter
@@ -447,6 +503,8 @@ class EncounterSerializer(serializers.ModelSerializer):
             "id",
             "encounter_type",
             "encounter_type_display",
+            "confidentiality",
+            "confidentiality_display",
             "chief_complaint",
             "notes",
             "created_by",
@@ -462,6 +520,7 @@ class EncounterSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
+            "confidentiality_display",
             "created_by",
             "created_at_hospital",
             "patient_nhid",
@@ -505,6 +564,9 @@ class EncounterListSerializer(serializers.ModelSerializer):
     patient_name = serializers.SerializerMethodField()
     is_cross_hospital = serializers.SerializerMethodField()
     has_abnormal_labs = serializers.SerializerMethodField()
+    confidentiality_display = serializers.CharField(
+        source="get_confidentiality_display", read_only=True
+    )
 
     class Meta:
         model = Encounter
@@ -512,6 +574,8 @@ class EncounterListSerializer(serializers.ModelSerializer):
             "id",
             "encounter_type",
             "encounter_type_display",
+            "confidentiality",
+            "confidentiality_display",
             "created_by",
             "created_at_hospital",
             "patient_nhid",
@@ -541,6 +605,45 @@ class EncounterListSerializer(serializers.ModelSerializer):
             return obj.lab_results.filter(is_abnormal=True).exists()
         except Exception:
             return False
+
+
+class EncounterCreateSerializer(serializers.ModelSerializer):
+    """Serializer for validated encounter creation (H-11)."""
+
+    chief_complaint = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        max_length=500,
+        error_messages={
+            "blank": "Chief complaint is required.",
+            "required": "Chief complaint is required.",
+        },
+    )
+    notes = serializers.CharField(required=False, allow_blank=True, max_length=5000, default="")
+    encounter_type = serializers.ChoiceField(
+        choices=Encounter.EncounterType.choices,
+        default=Encounter.EncounterType.OUTPATIENT,
+    )
+    confidentiality = serializers.ChoiceField(
+        choices=Encounter.ConfidentialityLevel.choices,
+        default=Encounter.ConfidentialityLevel.NORMAL,
+    )
+
+    def to_internal_value(self, data):
+        data = data.copy() if hasattr(data, "copy") else dict(data)
+        valid_choices = [c[0] for c in Encounter.ConfidentialityLevel.choices]
+        if "confidentiality" in data and data["confidentiality"] not in valid_choices:
+            data["confidentiality"] = Encounter.ConfidentialityLevel.NORMAL
+        return super().to_internal_value(data)
+
+    class Meta:
+        model = Encounter
+        fields = [
+            "encounter_type",
+            "confidentiality",
+            "chief_complaint",
+            "notes",
+        ]
 
 
 # ── Audit Log ─────────────────────────────────────────────────────────────────

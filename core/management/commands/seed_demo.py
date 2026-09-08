@@ -15,9 +15,11 @@ Demo credentials (all passwords = Demo@123456):
     ... (see full list printed at the end of seed_demo)
 """
 
+import os
 from django.core.management.base import BaseCommand
 
-DEMO_PASSWORD = "Demo@123456"
+# Default development demo password; configurable via DEMO_ACCOUNTS_PASSWORD in staging/demo deployments
+DEMO_PASSWORD = os.environ.get("DEMO_ACCOUNTS_PASSWORD", "Demo@123456")
 
 HOSPITALS = [
     {
@@ -872,8 +874,9 @@ class Command(BaseCommand):
             order, created = LabOrder.objects.get_or_create(
                 patient=patient,
                 encounter=encounter,
-                test_name=test_name,
+                test_name_hash=make_blind_index(test_name),
                 defaults={
+                    "test_name": test_name,
                     "ordered_by": ordered_by,
                     "loinc_code": loinc,
                     "priority": priority,

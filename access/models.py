@@ -119,12 +119,14 @@ class BreakGlassAccess(models.Model):
 
     actor = models.ForeignKey(
         "accounts.User",
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name="break_glass_accesses",
     )
     patient = models.ForeignKey(
         "patients.Patient",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="break_glass_accesses",
     )
     reason = EncryptedTextField(

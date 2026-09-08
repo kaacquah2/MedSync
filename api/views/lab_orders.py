@@ -97,7 +97,23 @@ class PatientLabOrderListCreateView(APIView):
         qs = patient.lab_orders.select_related("ordered_by").order_by("-created_at")
         paginator = PageNumberPagination()
         page = paginator.paginate_queryset(qs, request)
-        return paginator.get_paginated_response(LabOrderSerializer(page, many=True).data)
+        data = LabOrderSerializer(page, many=True).data
+
+        is_cross = (
+            request.user.hospital is not None
+            and patient.registered_at_hospital is not None
+            and request.user.hospital_id != patient.registered_at_hospital_id
+        )
+        log_action(
+            request,
+            action="VIEW_LAB_ORDERS",
+            target=patient,
+            patient=patient,
+            is_cross_hospital=is_cross,
+            extra={"count": len(data)},
+        )
+
+        return paginator.get_paginated_response(data)
 
     def post(self, request, universal_id):
         from api.idempotency import check_idempotency, store_idempotency
@@ -151,6 +167,19 @@ class LabOrderDetailView(APIView):
                 is_cross_hospital=True,
             )
             return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        is_cross = (
+            request.user.hospital is not None
+            and order.patient.registered_at_hospital is not None
+            and request.user.hospital_id != order.patient.registered_at_hospital_id
+        )
+        log_action(
+            request,
+            action="VIEW_LAB_ORDER",
+            target=order,
+            patient=order.patient,
+            is_cross_hospital=is_cross,
+            extra={"test_name": order.test_name, "priority": order.priority},
+        )
         return Response(LabOrderSerializer(order).data)
 
 
@@ -217,6 +246,11 @@ class LabOrderWorklistView(APIView):
             qs = qs.filter(ordered_by__hospital=request.user.hospital)
 
         limit = min(int(request.query_params.get("limit", 200)), 500)
-        return Response(
-            LabOrderSerializer(qs.order_by("priority", "created_at")[:limit], many=True).data
+        data = LabOrderSerializer(qs.order_by("priority", "created_at")[:limit], many=True).data
+        log_action(
+            request,
+            action="VIEW_LAB_WORKLIST",
+            target=getattr(request.user, "hospital", None),
+            extra={"count": len(data), "limit": limit},
         )
+        return Response(data)

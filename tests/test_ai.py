@@ -128,9 +128,13 @@ class TestQueryPatientUnconfigured:
             DEBUG=False,
             ALLOW_EXTERNAL_AI_IN_PRODUCTION=True,
         ):
-            with patch("ai.service._call_gemini", return_value="Response"):
+            with patch("ai.service._call_gemini", return_value="Response"), patch(
+                "ai.service.logger.critical"
+            ) as mock_crit:
                 res = query_patient(patient_a, [], None, [], "test?")
                 assert res["provider"] == "gemini"
+                mock_crit.assert_called_once()
+                assert "Act 843 §47" in mock_crit.call_args[0][0]
 
 
 class TestValidateCitations:

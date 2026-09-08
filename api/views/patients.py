@@ -27,6 +27,7 @@ from api.permissions import (
     IsDoctorOrNurse,
 )
 from api.serializers import (
+    EncounterCreateSerializer,
     EncounterListSerializer,
     EncounterSerializer,
     PatientAlertSerializer,
@@ -281,7 +282,10 @@ class PatientDetailView(APIView):
             alerts, many=True, context={"request": request}
         ).data
 
-        return Response(data)
+        resp = Response(data)
+        if patient.updated_at:
+            resp["ETag"] = f'"{patient.updated_at.isoformat()}"'
+        return resp
 
     def patch(self, request, universal_id):
         patient, decision = self._get_patient_or_403(request, universal_id)
@@ -293,13 +297,48 @@ class PatientDetailView(APIView):
         if not _has_edit_role(request.user):
             return Response({"error": "Insufficient role."}, status=status.HTTP_403_FORBIDDEN)
 
+        # Optimistic Concurrency Control (OCC)
+        if_match = request.headers.get("If-Match") or request.META.get("HTTP_IF_MATCH")
+        expected_updated_at = request.data.get("updated_at") or request.data.get("expected_version")
+
+        client_token = if_match or expected_updated_at
+        if client_token and patient.updated_at:
+            client_token = str(client_token).strip().strip('"')
+            current_iso = patient.updated_at.isoformat()
+            is_match = (client_token == current_iso)
+            if not is_match:
+                try:
+                    from django.utils.dateparse import parse_datetime
+                    parsed_client = parse_datetime(client_token)
+                    if parsed_client and parsed_client == patient.updated_at:
+                        is_match = True
+                except Exception:
+                    pass
+
+            if not is_match:
+                return Response(
+                    {
+                        "error": "Conflict: Patient demographic record has been modified by another user. Please refresh and review latest changes.",
+                        "code": "CONCURRENCY_CONFLICT",
+                        "current_updated_at": current_iso,
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+        patch_data = request.data.copy() if hasattr(request.data, "copy") else dict(request.data)
+        patch_data.pop("updated_at", None)
+        patch_data.pop("expected_version", None)
+
         serializer = PatientSerializer(
-            patient, data=request.data, partial=True, context={"request": request}
+            patient, data=patch_data, partial=True, context={"request": request}
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
         log_action(request, action="UPDATE_PATIENT", target=patient, patient=patient)
-        return Response(serializer.data)
+        resp = Response(serializer.data)
+        if patient.updated_at:
+            resp["ETag"] = f'"{patient.updated_at.isoformat()}"'
+        return resp
 
 
 def _has_edit_role(user):
@@ -428,7 +467,7 @@ class PatientEncounterListCreateView(APIView):
     def get_permissions(self):
         if self.request.method == "POST":
             return [IsAuthenticated(), CanCreateEncounter()]
-        return [IsAuthenticated(), IsAdminOrClinical()]
+        return [IsAuthenticated(), IsDoctorOrNurse()]
 
     def get(self, request, universal_id):
         patient = get_object_or_404(Patient, universal_id=universal_id)
@@ -487,21 +526,22 @@ class PatientEncounterListCreateView(APIView):
             )
             return Response({"error": "Access denied."}, status=status.HTTP_403_FORBIDDEN)
 
-        enc_type = request.data.get("encounter_type", "OPD")
-        chief_complaint = request.data.get("chief_complaint", "").strip()
-        notes = request.data.get("notes", "").strip()
+        serializer = EncounterCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            if "chief_complaint" in serializer.errors:
+                return Response(
+                    {"error": "Chief complaint is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        if not chief_complaint:
-            return Response(
-                {"error": "Chief complaint is required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+        val = serializer.validated_data
         encounter = Encounter.objects.create(
             patient=patient,
-            encounter_type=enc_type,
-            chief_complaint=chief_complaint,
-            notes=notes,
+            encounter_type=val["encounter_type"],
+            chief_complaint=val["chief_complaint"].strip(),
+            notes=val.get("notes", "").strip(),
+            confidentiality=val.get("confidentiality", Encounter.ConfidentialityLevel.NORMAL),
             created_by=request.user,
             created_at_hospital=request.user.hospital,
         )

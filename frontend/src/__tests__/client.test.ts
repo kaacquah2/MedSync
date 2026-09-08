@@ -32,11 +32,11 @@ describe("CSRF & Auth Token interceptor", () => {
     expect(config.headers["X-CSRFToken"]).toBe("test-csrf-token");
   });
 
-  it("attaches Authorization header when auth_token is set", async () => {
+  it("does not attach Authorization header even if auth_token is in localStorage (ADR-002 cookie-only)", async () => {
     localStorage.setItem("auth_token", "secret-token-123");
     const handler = getRequestInterceptor();
     const config = await handler({ method: "get", headers: {} });
-    expect(config.headers["Authorization"]).toBe("Bearer secret-token-123");
+    expect(config.headers["Authorization"]).toBeUndefined();
   });
 });
 

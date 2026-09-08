@@ -168,7 +168,14 @@ class HandoverListCreateView(APIView):
         elif request.user.role not in ("super_admin",):
             qs = qs.filter(from_user__hospital=request.user.hospital)
         limit = min(int(request.query_params.get("limit", 100)), 500)
-        return Response(HandoverSerializer(qs.order_by("-created_at")[:limit], many=True).data)
+        data = HandoverSerializer(qs.order_by("-created_at")[:limit], many=True).data
+        log_action(
+            request,
+            action="VIEW_HANDOVERS",
+            target=getattr(request.user, "hospital", None),
+            extra={"count": len(data), "limit": limit},
+        )
+        return Response(data)
 
     def post(self, request):
         serializer = HandoverSerializer(data=request.data)

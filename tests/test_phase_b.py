@@ -291,6 +291,57 @@ class TestReferrals:
         )
         assert resp.status_code == 403
 
+    def test_hospital_admin_cannot_create_referral(
+        self, db, client, hospital_a, patient_a, hospital_b
+    ):
+        hosp_admin = _make_user("admin_ref_pb", "hospital_admin", hospital_a)
+        client.force_login(hosp_admin)
+        resp = client.post(
+            "/api/referrals/",
+            json.dumps(
+                {
+                    "patient": patient_a.pk,
+                    "from_hospital": hospital_a.pk,
+                    "to_hospital": hospital_b.pk,
+                    "reason": "Test admin",
+                    "priority": "routine",
+                }
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 403
+
+    def test_hospital_admin_cannot_update_referral_status(
+        self, db, client, hospital_a, patient_a, hospital_b, doctor_a
+    ):
+        from referrals.models import Referral
+
+        referral = Referral.objects.create(
+            patient=patient_a,
+            from_hospital=hospital_a,
+            to_hospital=hospital_b,
+            from_provider=doctor_a,
+            reason="Cardiology review",
+            priority="routine",
+            status="sent",
+        )
+        hosp_admin = _make_user("admin_ref_status", "hospital_admin", hospital_b)
+        client.force_login(hosp_admin)
+        resp = client.patch(
+            f"/api/referrals/{referral.pk}/status/",
+            json.dumps({"status": "accepted", "status_notes": "Admin cannot approve"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 403
+
+    def test_hospital_admin_can_view_referrals(
+        self, db, client, hospital_a
+    ):
+        hosp_admin = _make_user("admin_ref_view", "hospital_admin", hospital_a)
+        client.force_login(hosp_admin)
+        resp = client.get("/api/referrals/")
+        assert resp.status_code == 200
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Shifts
@@ -431,6 +482,243 @@ class TestVitals:
             content_type="application/json",
         )
         assert resp.status_code == 201
+
+    def test_vitals_out_of_bounds_rejected_with_400(self, db, client, nurse_a, patient_a):
+        client.force_login(nurse_a)
+        # Heart rate < 20 or > 300
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({"heart_rate": -500}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "heart_rate" in resp.json()
+
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({"heart_rate": 30000}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "heart_rate" in resp.json()
+
+        # Temperature < 30 or > 45
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({"temperature": "25.0"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "temperature" in resp.json()
+
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({"temperature": "50.0"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "temperature" in resp.json()
+
+        # SpO2 < 50 or > 100
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({"spo2": "40.0"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "spo2" in resp.json()
+
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({"spo2": "200.0"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "spo2" in resp.json()
+
+        # Pain score > 10
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({"pain_score": 11}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "pain_score" in resp.json()
+
+        # BP systolic < 50 or > 250
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({"bp_systolic": 40}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "bp_systolic" in resp.json()
+
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({"bp_systolic": 300}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "bp_systolic" in resp.json()
+
+        # BP diastolic < 30 or > 150
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({"bp_diastolic": 20}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "bp_diastolic" in resp.json()
+
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({"bp_diastolic": 160}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "bp_diastolic" in resp.json()
+
+        # Blood glucose < 0.5 or > 50.0
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({"blood_glucose": "0.1"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "blood_glucose" in resp.json()
+
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({"blood_glucose": "55.0"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "blood_glucose" in resp.json()
+
+    def test_vitals_systolic_must_exceed_diastolic(self, db, client, doctor_a, patient_a):
+        client.force_login(doctor_a)
+        # Systolic < Diastolic
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({"bp_systolic": 80, "bp_diastolic": 120}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "bp_systolic" in resp.json()
+
+        # Systolic == Diastolic
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({"bp_systolic": 100, "bp_diastolic": 100}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "bp_systolic" in resp.json()
+
+    def test_vitals_valid_boundaries_accepted(self, db, client, nurse_a, patient_a):
+        client.force_login(nurse_a)
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({
+                "temperature": "30.0",
+                "heart_rate": 20,
+                "bp_systolic": 50,
+                "bp_diastolic": 30,
+                "spo2": "50.00",
+                "pain_score": 0,
+                "blood_glucose": "0.5",
+            }),
+            content_type="application/json",
+        )
+        assert resp.status_code == 201
+        assert float(resp.json()["blood_glucose"]) == 0.5
+
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({
+                "temperature": "45.0",
+                "heart_rate": 300,
+                "bp_systolic": 250,
+                "bp_diastolic": 150,
+                "spo2": "100.00",
+                "pain_score": 10,
+                "blood_glucose": "50.0",
+            }),
+            content_type="application/json",
+        )
+        assert resp.status_code == 201
+        assert float(resp.json()["blood_glucose"]) == 50.0
+
+    def test_vitals_model_full_clean_validates_boundaries(self, db, patient_a, nurse_a):
+        from decimal import Decimal
+        from django.core.exceptions import ValidationError
+        from records.models import VitalSign
+
+        vital = VitalSign(
+            patient=patient_a,
+            recorded_by=nurse_a,
+            heart_rate=10,
+        )
+        with pytest.raises(ValidationError):
+            vital.full_clean()
+
+    def test_vitals_model_clean_rejects_systolic_lte_diastolic(self, db, patient_a, nurse_a):
+        from django.core.exceptions import ValidationError
+        from records.models import VitalSign
+
+        vital = VitalSign(
+            patient=patient_a,
+            recorded_by=nurse_a,
+            bp_systolic=90,
+            bp_diastolic=110,
+        )
+        with pytest.raises(ValidationError) as excinfo:
+            vital.clean()
+        assert "bp_systolic" in excinfo.value.message_dict
+
+    def test_vitals_respiratory_rate_and_weight_boundaries(self, db, client, nurse_a, patient_a):
+        client.force_login(nurse_a)
+        # Respiratory rate out of bounds (< 4 or > 80)
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({"respiratory_rate": 100}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "respiratory_rate" in resp.json()
+
+        # Weight out of bounds (< 0.5 or > 500)
+        resp = client.post(
+            self._url(patient_a),
+            json.dumps({"weight_kg": "600.0"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+        assert "weight_kg" in resp.json()
+
+    def test_db_check_constraints_reject_out_of_range(self, db, patient_a, nurse_a):
+        from decimal import Decimal
+        from django.db import IntegrityError, transaction
+        from records.models import VitalSign
+
+        # Heart rate out of range at DB layer
+        with pytest.raises(IntegrityError):
+            with transaction.atomic():
+                VitalSign.objects.create(
+                    patient=patient_a,
+                    recorded_by=nurse_a,
+                    heart_rate=500,
+                )
+
+        # SpO2 out of range at DB layer
+        with pytest.raises(IntegrityError):
+            with transaction.atomic():
+                VitalSign.objects.create(
+                    patient=patient_a,
+                    recorded_by=nurse_a,
+                    spo2=Decimal("150.0"),
+                )
 
 
 # ══════════════════════════════════════════════════════════════════════════════

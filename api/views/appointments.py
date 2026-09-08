@@ -16,6 +16,10 @@ class AppointmentSerializer(serializers.ModelSerializer):
     appointment_type_display = serializers.CharField(
         source="get_appointment_type_display", read_only=True
     )
+    triage_acuity_display = serializers.CharField(
+        source="get_triage_acuity_display", read_only=True
+    )
+    triage_level = serializers.CharField(source="triage_acuity", read_only=True)
     patient_nhid = serializers.CharField(source="patient.universal_id", read_only=True)
     patient_name = serializers.SerializerMethodField()
     provider_name = serializers.SerializerMethodField()
@@ -38,6 +42,9 @@ class AppointmentSerializer(serializers.ModelSerializer):
             "appointment_type_display",
             "status",
             "status_display",
+            "triage_acuity",
+            "triage_acuity_display",
+            "triage_level",
             "reason",
             "notes",
             "created_at",
@@ -50,8 +57,36 @@ class AppointmentSerializer(serializers.ModelSerializer):
             "hospital_name",
             "status_display",
             "appointment_type_display",
+            "triage_acuity_display",
+            "triage_level",
             "created_at",
         ]
+
+    def to_internal_value(self, data):
+        if hasattr(data, "copy"):
+            data = data.copy()
+        elif isinstance(data, dict):
+            data = dict(data)
+        if isinstance(data, dict):
+            if "triage_level" in data and "triage_acuity" not in data:
+                data["triage_acuity"] = data["triage_level"]
+        return super().to_internal_value(data)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        appt_type = attrs.get("appointment_type")
+        if appt_type is None and self.instance:
+            appt_type = self.instance.appointment_type
+
+        triage_acuity = attrs.get("triage_acuity")
+        if triage_acuity is None and self.instance:
+            triage_acuity = self.instance.triage_acuity
+
+        if appt_type == Appointment.AppointmentType.EMERGENCY and not triage_acuity:
+            raise serializers.ValidationError(
+                {"triage_acuity": "Triage acuity (RED, ORANGE, YELLOW, GREEN) is mandatory for emergency appointments."}
+            )
+        return attrs
 
     def get_patient_name(self, obj):
         try:
@@ -89,11 +124,40 @@ class AppointmentListCreateView(APIView):
         if appt_status:
             qs = qs.filter(status=appt_status)
 
+        # Appointment type filter
+        appt_type = request.GET.get("appointment_type")
+        if appt_type:
+            qs = qs.filter(appointment_type=appt_type)
+
+        # Triage acuity filter
+        triage_acuity = request.GET.get("triage_acuity")
+        if triage_acuity:
+            qs = qs.filter(triage_acuity=triage_acuity)
+
         qs = qs.order_by("scheduled_for")
-        return Response(AppointmentSerializer(qs, many=True).data)
+        data = AppointmentSerializer(qs, many=True).data
+        extra = {"count": len(data)}
+        if date_str:
+            extra["date"] = date_str
+        if appt_status:
+            extra["status"] = appt_status
+        if appt_type:
+            extra["appointment_type"] = appt_type
+        if triage_acuity:
+            extra["triage_acuity"] = triage_acuity
+        log_action(
+            request,
+            action="VIEW_APPOINTMENTS",
+            target=getattr(request.user, "hospital", None),
+            extra=extra,
+        )
+        return Response(data)
 
     def post(self, request):
         data = request.data.copy()
+        if "hospital" not in data and getattr(request.user, "hospital", None):
+            data["hospital"] = request.user.hospital.pk
+
         patient_val = data.get("patient")
         if isinstance(patient_val, str) and patient_val.startswith("NHID-"):
             from patients.models import Patient
@@ -110,10 +174,7 @@ class AppointmentListCreateView(APIView):
         serializer = AppointmentSerializer(data=data)
         serializer.is_valid(raise_exception=True)
 
-        # Default hospital to user's hospital if not provided
-        if "hospital" not in request.data and request.user.hospital:
-            serializer.validated_data["hospital"] = request.user.hospital
-        elif request.user.role != "super_admin":
+        if request.user.role != "super_admin":
             supplied = serializer.validated_data.get("hospital")
             if supplied and supplied != request.user.hospital:
                 return Response(
@@ -139,6 +200,18 @@ class AppointmentDetailView(APIView):
 
     def get(self, request, pk):
         appt = self._get_appt(request, pk)
+        is_cross = (
+            request.user.hospital is not None
+            and appt.hospital is not None
+            and request.user.hospital_id != appt.hospital_id
+        )
+        log_action(
+            request,
+            action="VIEW_APPOINTMENT",
+            target=appt,
+            patient=appt.patient,
+            is_cross_hospital=is_cross,
+        )
         return Response(AppointmentSerializer(appt).data)
 
     def patch(self, request, pk):
