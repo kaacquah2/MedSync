@@ -18,7 +18,6 @@ from rest_framework.views import APIView
 from access.permissions import can_access_patient
 from api.permissions import (
     CanAdministerMedication,
-    CanCreateEncounter,
     CanCreateLabResult,
     CanDiagnose,
     CanPrescribe,
@@ -161,7 +160,9 @@ class PrescriptionCreateView(APIView):
 
         from records.allergy_checker import check_prescription_allergies
 
-        conflicts = check_prescription_allergies(encounter.patient, drug_name, rxnorm_code=rxnorm_code)
+        conflicts = check_prescription_allergies(
+            encounter.patient, drug_name, rxnorm_code=rxnorm_code
+        )
         if conflicts:
             if not override_reason or len(override_reason) < 10:
                 conflict_details = [
@@ -289,10 +290,18 @@ class PatientRecordsSummaryView(APIView):
 
         return Response(
             {
-                "diagnoses": DiagnosisSerializer(diagnoses, many=True).data if can_view_clinical else [],
-                "prescriptions": PrescriptionSerializer(prescriptions, many=True).data if can_view_clinical else [],
-                "lab_results": LabResultSerializer(lab_results, many=True).data if (can_view_clinical or user_role == "lab_technician") else [],
-                "vitals": VitalSignSerializer(vitals, many=True).data if (can_view_clinical or getattr(request.user, "is_admin_level", False)) else [],
+                "diagnoses": DiagnosisSerializer(diagnoses, many=True).data
+                if can_view_clinical
+                else [],
+                "prescriptions": PrescriptionSerializer(prescriptions, many=True).data
+                if can_view_clinical
+                else [],
+                "lab_results": LabResultSerializer(lab_results, many=True).data
+                if (can_view_clinical or user_role == "lab_technician")
+                else [],
+                "vitals": VitalSignSerializer(vitals, many=True).data
+                if (can_view_clinical or getattr(request.user, "is_admin_level", False))
+                else [],
             }
         )
 
@@ -321,15 +330,14 @@ class LabResultCreateView(APIView):
         serializer = LabResultSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        is_critical_flag = (
-            serializer.validated_data.get("is_critical", False)
-            or serializer.validated_data.get("notify_doctor", False)
-        )
+        is_critical_flag = serializer.validated_data.get(
+            "is_critical", False
+        ) or serializer.validated_data.get("notify_doctor", False)
         if is_critical_flag:
             serializer.validated_data["is_critical"] = True
             serializer.validated_data["is_abnormal"] = True
 
-        notify_doctor = serializer.validated_data.pop("notify_doctor", False)
+        serializer.validated_data.pop("notify_doctor", None)
         lab = serializer.save(encounter=encounter, created_by=request.user)
 
         # If originating LabOrder was linked, mark it as resulted

@@ -5,15 +5,21 @@ import patients.models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('patients', '0007_alter_patient_date_of_birth'),
+        ("patients", "0007_alter_patient_date_of_birth"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='patient',
-            name='universal_id',
-            field=models.CharField(db_index=True, default=patients.models.generate_nhid, editable=False, max_length=32, unique=True, verbose_name='National Health ID'),
+            model_name="patient",
+            name="universal_id",
+            field=models.CharField(
+                db_index=True,
+                default=patients.models.generate_nhid,
+                editable=False,
+                max_length=32,
+                unique=True,
+                verbose_name="National Health ID",
+            ),
         ),
     ]

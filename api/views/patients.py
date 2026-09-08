@@ -23,7 +23,6 @@ from api.permissions import (
     BreakGlassThrottle,
     CanCreateEncounter,
     CanRegisterPatient,
-    IsAdminOrClinical,
     IsDoctorOrNurse,
 )
 from api.serializers import (
@@ -305,10 +304,11 @@ class PatientDetailView(APIView):
         if client_token and patient.updated_at:
             client_token = str(client_token).strip().strip('"')
             current_iso = patient.updated_at.isoformat()
-            is_match = (client_token == current_iso)
+            is_match = client_token == current_iso
             if not is_match:
                 try:
                     from django.utils.dateparse import parse_datetime
+
                     parsed_client = parse_datetime(client_token)
                     if parsed_client and parsed_client == patient.updated_at:
                         is_match = True

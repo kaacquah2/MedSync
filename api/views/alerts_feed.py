@@ -72,7 +72,11 @@ class AlertsFeedView(APIView):
         for lab in lab_qs:
             patient = lab.encounter.patient if lab.encounter else None
             result_str = str(lab.result_value or "").upper()
-            if getattr(lab, "is_critical", False) or "CRITICAL" in result_str or "PANIC" in result_str:
+            if (
+                getattr(lab, "is_critical", False)
+                or "CRITICAL" in result_str
+                or "PANIC" in result_str
+            ):
                 severity = "LIFE_THREAT"
                 label = f"CRITICAL: {lab.test_name}"
             elif lab.is_abnormal:

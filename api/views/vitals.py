@@ -1,6 +1,7 @@
 """Vital signs API — record and retrieve patient vitals."""
 
 from decimal import Decimal
+
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.shortcuts import get_object_or_404
 from rest_framework import serializers, status
@@ -119,7 +120,9 @@ class VitalSignSerializer(serializers.ModelSerializer):
 
         if systolic is not None and diastolic is not None and systolic <= diastolic:
             raise serializers.ValidationError(
-                {"bp_systolic": "Systolic blood pressure must be greater than diastolic blood pressure."}
+                {
+                    "bp_systolic": "Systolic blood pressure must be greater than diastolic blood pressure."
+                }
             )
         return attrs
 

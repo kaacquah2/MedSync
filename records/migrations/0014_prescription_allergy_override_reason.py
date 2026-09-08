@@ -5,15 +5,18 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('records', '0013_alter_diagnosis_encounter_alter_laborder_encounter_and_more'),
+        ("records", "0013_alter_diagnosis_encounter_alter_laborder_encounter_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='prescription',
-            name='allergy_override_reason',
-            field=core.fields.EncryptedTextField(blank=True, help_text='Clinical justification if prescribed despite an active allergy conflict.', verbose_name='Allergy override reason'),
+            model_name="prescription",
+            name="allergy_override_reason",
+            field=core.fields.EncryptedTextField(
+                blank=True,
+                help_text="Clinical justification if prescribed despite an active allergy conflict.",
+                verbose_name="Allergy override reason",
+            ),
         ),
     ]

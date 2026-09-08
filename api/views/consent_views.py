@@ -108,7 +108,10 @@ class PatientConsentListCreateView(APIView):
             patient=patient,
             extra={"hospital_code": hospital.code},
         )
-        return Response(PatientConsentSerializer(consent).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+        return Response(
+            PatientConsentSerializer(consent).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
 
 class PatientConsentDetailView(APIView):

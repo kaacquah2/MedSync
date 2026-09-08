@@ -6,16 +6,21 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ('access', '0002_alter_breakglassaccess_reason_and_more'),
+        ("access", "0002_alter_breakglassaccess_reason_and_more"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='breakglassaccess',
-            name='actor',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='break_glass_accesses', to=settings.AUTH_USER_MODEL),
+            model_name="breakglassaccess",
+            name="actor",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="break_glass_accesses",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
     ]

@@ -30,8 +30,9 @@ from shifts.models import Handover, ShiftRecord
 
 @pytest.mark.django_db
 class TestAuditReadEndpoints:
-
-    def test_view_appointments_list_audited(self, client_as_doctor_a, hospital_a, patient_a, doctor_a):
+    def test_view_appointments_list_audited(
+        self, client_as_doctor_a, hospital_a, patient_a, doctor_a
+    ):
         Appointment.objects.create(
             patient=patient_a,
             provider=doctor_a,
@@ -45,12 +46,19 @@ class TestAuditReadEndpoints:
         resp = client_as_doctor_a.get("/api/appointments/")
         assert resp.status_code == 200
 
-        entry = AuditLog.objects.filter(action=AuditLog.Action.VIEW_APPOINTMENTS).latest("timestamp")
+        entry = AuditLog.objects.filter(action=AuditLog.Action.VIEW_APPOINTMENTS).latest(
+            "timestamp"
+        )
         assert entry.actor == doctor_a
         assert entry.extra.get("count") >= 1
-        assert AuditLog.objects.filter(action=AuditLog.Action.VIEW_APPOINTMENTS).count() == initial_count + 1
+        assert (
+            AuditLog.objects.filter(action=AuditLog.Action.VIEW_APPOINTMENTS).count()
+            == initial_count + 1
+        )
 
-    def test_view_appointment_detail_audited(self, client_as_doctor_a, hospital_a, patient_a, doctor_a):
+    def test_view_appointment_detail_audited(
+        self, client_as_doctor_a, hospital_a, patient_a, doctor_a
+    ):
         appt = Appointment.objects.create(
             patient=patient_a,
             provider=doctor_a,
@@ -69,7 +77,9 @@ class TestAuditReadEndpoints:
         assert entry.patient_nhid == patient_a.universal_id
         assert entry.is_cross_hospital is False
 
-    def test_view_referrals_list_audited(self, client_as_doctor_a, hospital_a, hospital_b, patient_a, doctor_a):
+    def test_view_referrals_list_audited(
+        self, client_as_doctor_a, hospital_a, hospital_b, patient_a, doctor_a
+    ):
         Referral.objects.create(
             patient=patient_a,
             from_hospital=hospital_a,
@@ -154,7 +164,9 @@ class TestAuditReadEndpoints:
         assert entry.actor == doctor_a
         assert entry.extra.get("count") >= 1
 
-    def test_view_lab_orders_audited(self, client_as_doctor_a, patient_a, doctor_a, encounter_a, hospital_a):
+    def test_view_lab_orders_audited(
+        self, client_as_doctor_a, patient_a, doctor_a, encounter_a, hospital_a
+    ):
         order = LabOrder.objects.create(
             encounter=encounter_a,
             patient=patient_a,
@@ -167,21 +179,27 @@ class TestAuditReadEndpoints:
         # 1. Patient lab orders list
         resp_list = client_as_doctor_a.get(f"/api/patients/{patient_a.universal_id}/lab-orders/")
         assert resp_list.status_code == 200
-        entry_list = AuditLog.objects.filter(action=AuditLog.Action.VIEW_LAB_ORDERS).latest("timestamp")
+        entry_list = AuditLog.objects.filter(action=AuditLog.Action.VIEW_LAB_ORDERS).latest(
+            "timestamp"
+        )
         assert entry_list.patient_nhid == patient_a.universal_id
         assert entry_list.actor == doctor_a
 
         # 2. Lab order detail
         resp_detail = client_as_doctor_a.get(f"/api/lab-orders/{order.pk}/")
         assert resp_detail.status_code == 200
-        entry_detail = AuditLog.objects.filter(action=AuditLog.Action.VIEW_LAB_ORDER).latest("timestamp")
+        entry_detail = AuditLog.objects.filter(action=AuditLog.Action.VIEW_LAB_ORDER).latest(
+            "timestamp"
+        )
         assert entry_detail.target_id == str(order.pk)
         assert entry_detail.patient_nhid == patient_a.universal_id
 
         # 3. Lab order worklist
         resp_worklist = client_as_doctor_a.get("/api/lab-orders/worklist/")
         assert resp_worklist.status_code == 200
-        entry_worklist = AuditLog.objects.filter(action=AuditLog.Action.VIEW_LAB_WORKLIST).latest("timestamp")
+        entry_worklist = AuditLog.objects.filter(action=AuditLog.Action.VIEW_LAB_WORKLIST).latest(
+            "timestamp"
+        )
         assert entry_worklist.actor == doctor_a
         assert entry_worklist.extra.get("count") >= 1
 
@@ -204,7 +222,9 @@ class TestAuditReadEndpoints:
         assert entry.actor == nurse_a
         assert entry.extra.get("count") >= 1
 
-    def test_read_audit_entries_maintain_hash_chain_integrity(self, client_as_doctor_a, patient_a, doctor_a, hospital_a):
+    def test_read_audit_entries_maintain_hash_chain_integrity(
+        self, client_as_doctor_a, patient_a, doctor_a, hospital_a
+    ):
         # Trigger multiple read operations in sequence
         client_as_doctor_a.get("/api/appointments/")
         client_as_doctor_a.get(f"/api/patients/{patient_a.universal_id}/lab-orders/")

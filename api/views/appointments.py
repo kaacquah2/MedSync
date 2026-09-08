@@ -84,7 +84,9 @@ class AppointmentSerializer(serializers.ModelSerializer):
 
         if appt_type == Appointment.AppointmentType.EMERGENCY and not triage_acuity:
             raise serializers.ValidationError(
-                {"triage_acuity": "Triage acuity (RED, ORANGE, YELLOW, GREEN) is mandatory for emergency appointments."}
+                {
+                    "triage_acuity": "Triage acuity (RED, ORANGE, YELLOW, GREEN) is mandatory for emergency appointments."
+                }
             )
         return attrs
 

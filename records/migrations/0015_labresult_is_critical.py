@@ -4,15 +4,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('records', '0014_prescription_allergy_override_reason'),
+        ("records", "0014_prescription_allergy_override_reason"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='labresult',
-            name='is_critical',
-            field=models.BooleanField(default=False, help_text='Flagged when result represents an immediate life-threatening critical value.', verbose_name='Critical value'),
+            model_name="labresult",
+            name="is_critical",
+            field=models.BooleanField(
+                default=False,
+                help_text="Flagged when result represents an immediate life-threatening critical value.",
+                verbose_name="Critical value",
+            ),
         ),
     ]

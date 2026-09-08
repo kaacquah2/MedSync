@@ -11,10 +11,11 @@ Verifies:
 """
 
 import importlib
+
+import pytest
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from rest_framework.test import APIClient
-import pytest
 
 from scheduling.models import Appointment
 
@@ -37,8 +38,15 @@ class TestEmergencyTriageModel:
             appt.full_clean()
         assert "triage_acuity" in excinfo.value.message_dict
 
-    def test_emergency_appointment_with_valid_acuity_succeeds(self, patient_a, hospital_a, doctor_a):
-        for acuity in [Appointment.TriageAcuity.RED, Appointment.TriageAcuity.ORANGE, Appointment.TriageAcuity.YELLOW, Appointment.TriageAcuity.GREEN]:
+    def test_emergency_appointment_with_valid_acuity_succeeds(
+        self, patient_a, hospital_a, doctor_a
+    ):
+        for acuity in [
+            Appointment.TriageAcuity.RED,
+            Appointment.TriageAcuity.ORANGE,
+            Appointment.TriageAcuity.YELLOW,
+            Appointment.TriageAcuity.GREEN,
+        ]:
             appt = Appointment.objects.create(
                 patient=patient_a,
                 hospital=hospital_a,
@@ -50,7 +58,9 @@ class TestEmergencyTriageModel:
             appt.full_clean()
             assert appt.triage_acuity == acuity
 
-    def test_outpatient_appointment_without_triage_acuity_succeeds(self, patient_a, hospital_a, doctor_a):
+    def test_outpatient_appointment_without_triage_acuity_succeeds(
+        self, patient_a, hospital_a, doctor_a
+    ):
         appt = Appointment.objects.create(
             patient=patient_a,
             hospital=hospital_a,
@@ -100,7 +110,9 @@ class TestEmergencyTriageAPI:
         assert resp.status_code == 400
         assert "triage_acuity" in resp.json()
 
-    def test_create_emergency_appointment_with_triage_level_alias(self, auth_doctor_client, patient_a):
+    def test_create_emergency_appointment_with_triage_level_alias(
+        self, auth_doctor_client, patient_a
+    ):
         payload = {
             "patient": patient_a.pk,
             "appointment_type": "emergency",
@@ -128,7 +140,9 @@ class TestEmergencyTriageAPI:
         assert resp.status_code == 400
         assert "triage_acuity" in resp.json()
 
-    def test_filter_appointments_by_type_and_acuity(self, auth_doctor_client, patient_a, hospital_a, doctor_a):
+    def test_filter_appointments_by_type_and_acuity(
+        self, auth_doctor_client, patient_a, hospital_a, doctor_a
+    ):
         # Create RED emergency
         Appointment.objects.create(
             patient=patient_a,

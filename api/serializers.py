@@ -388,9 +388,7 @@ class PrescriptionSerializer(serializers.ModelSerializer):
     rxnorm_code = serializers.CharField(
         required=False, allow_blank=True, validators=[validate_rxnorm]
     )
-    allergy_override_reason = serializers.CharField(
-        required=False, allow_blank=True
-    )
+    allergy_override_reason = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = Prescription

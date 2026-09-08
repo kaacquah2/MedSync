@@ -5,35 +5,58 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('records', '0012_alter_vitalsign_bp_diastolic_and_more'),
+        ("records", "0012_alter_vitalsign_bp_diastolic_and_more"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='diagnosis',
-            name='encounter',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='diagnoses', to='records.encounter'),
+            model_name="diagnosis",
+            name="encounter",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.PROTECT,
+                related_name="diagnoses",
+                to="records.encounter",
+            ),
         ),
         migrations.AlterField(
-            model_name='laborder',
-            name='encounter',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='lab_orders', to='records.encounter'),
+            model_name="laborder",
+            name="encounter",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.PROTECT,
+                related_name="lab_orders",
+                to="records.encounter",
+            ),
         ),
         migrations.AlterField(
-            model_name='labresult',
-            name='encounter',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='lab_results', to='records.encounter'),
+            model_name="labresult",
+            name="encounter",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.PROTECT,
+                related_name="lab_results",
+                to="records.encounter",
+            ),
         ),
         migrations.AlterField(
-            model_name='prescription',
-            name='encounter',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='prescriptions', to='records.encounter'),
+            model_name="prescription",
+            name="encounter",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.PROTECT,
+                related_name="prescriptions",
+                to="records.encounter",
+            ),
         ),
         migrations.AlterField(
-            model_name='vitalsign',
-            name='encounter',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, related_name='vitals', to='records.encounter'),
+            model_name="vitalsign",
+            name="encounter",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.PROTECT,
+                related_name="vitals",
+                to="records.encounter",
+            ),
         ),
     ]

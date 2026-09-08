@@ -286,7 +286,9 @@ class TestClinicalCodeEncryption:
         assert found is not None
         assert found.rxnorm_code == "1433868"
 
-    def test_lab_order_and_result_codes_encrypted_and_blind_indexed(self, db, patient_a, encounter_a):
+    def test_lab_order_and_result_codes_encrypted_and_blind_indexed(
+        self, db, patient_a, encounter_a
+    ):
         from django.db import connection
 
         from core.blind_index import make_blind_index
@@ -333,7 +335,9 @@ class TestClinicalCodeEncryption:
         assert lr_loinc_hash == make_blind_index("25836-8")
 
         # Searchability assertions
-        assert LabOrder.objects.filter(test_name_hash=make_blind_index("HIV Viral Load")).count() == 1
+        assert (
+            LabOrder.objects.filter(test_name_hash=make_blind_index("HIV Viral Load")).count() == 1
+        )
         assert LabResult.objects.filter(loinc_code_hash=make_blind_index("25836-8")).count() == 1
 
         # Decryption assertions
@@ -344,4 +348,3 @@ class TestClinicalCodeEncryption:
         refetched_result = LabResult.objects.get(pk=result.pk)
         assert refetched_result.test_name == "HIV Viral Load"
         assert refetched_result.loinc_code == "25836-8"
-

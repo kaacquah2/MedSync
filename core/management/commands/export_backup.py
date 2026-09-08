@@ -9,7 +9,9 @@ from django.db import connection
 
 
 class Command(BaseCommand):
-    help = "Exports database snapshot and media patient documents to a timestamped backup directory."
+    help = (
+        "Exports database snapshot and media patient documents to a timestamped backup directory."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -58,11 +60,15 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.SUCCESS(f"PostgreSQL dump saved to: {dest_file}"))
                 else:
                     self.stdout.write(
-                        self.style.WARNING("pg_dump returned non-zero exit code (ensure pg_dump is in PATH).")
+                        self.style.WARNING(
+                            "pg_dump returned non-zero exit code (ensure pg_dump is in PATH)."
+                        )
                     )
             else:
                 self.stdout.write(
-                    self.style.WARNING("DATABASE_URL not set; skipping automated pg_dump execution.")
+                    self.style.WARNING(
+                        "DATABASE_URL not set; skipping automated pg_dump execution."
+                    )
                 )
 
         # 2. Backup Patient Documents

@@ -1,8 +1,9 @@
 import json
+
 import pytest
 from rest_framework import status
 
-from records.models import ConfidentialityLevel, Diagnosis, Encounter, PatientDocument
+from records.models import ConfidentialityLevel, Diagnosis, Encounter
 
 
 @pytest.mark.django_db

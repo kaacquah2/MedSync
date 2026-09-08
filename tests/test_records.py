@@ -235,8 +235,9 @@ class TestLabResults:
     def test_critical_result_creates_patient_alert_and_notifies_doctor(
         self, db, hospital_a, encounter_a, patient_a, doctor_a, client
     ):
-        from accounts.models import User
         from django.core import mail
+
+        from accounts.models import User
         from audit.models import AuditLog
         from patients.models import PatientAlert
         from records.models import LabOrder
@@ -578,6 +579,7 @@ class TestClinicalCodeValidationAndIdempotency:
 class TestEncounterCascadeProtection:
     def test_encounter_delete_protected_when_diagnosis_exists(self, db, encounter_a, doctor_a):
         from django.db.models import ProtectedError
+
         from records.models import Diagnosis
 
         Diagnosis.objects.create(
@@ -589,4 +591,3 @@ class TestEncounterCascadeProtection:
 
         with pytest.raises(ProtectedError):
             encounter_a.delete()
-

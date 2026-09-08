@@ -22,6 +22,10 @@ from api.views.auth import (
     MeView,
     PasswordChangeView,
 )
+from api.views.consent_views import (
+    PatientConsentDetailView,
+    PatientConsentListCreateView,
+)
 from api.views.dashboard import DashboardView
 from api.views.documents import (
     PatientDocumentDeleteView,
@@ -62,10 +66,6 @@ from api.views.records import (
     MedicationAdministrationUpdateStatusView,
     PatientRecordsSummaryView,
     PrescriptionCreateView,
-)
-from api.views.consent_views import (
-    PatientConsentDetailView,
-    PatientConsentListCreateView,
 )
 from api.views.referrals_views import ReferralListCreateView, ReferralStatusView
 from api.views.shifts_views import (

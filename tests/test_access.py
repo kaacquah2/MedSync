@@ -323,13 +323,20 @@ class TestEnsureTreatmentRelationship:
 
 
 class TestPatientConsentApi:
-    def test_grant_and_revoke_consent_via_api(self, client_as_doctor_b, doctor_b, patient_a, hospital_b):
-        from access.models import PatientConsent
+    def test_grant_and_revoke_consent_via_api(
+        self, client_as_doctor_b, doctor_b, patient_a, hospital_b
+    ):
 
         # 1. Grant consent
         res = client_as_doctor_b.post(
             "/api/consents/",
-            json.dumps({"patient": patient_a.universal_id, "hospital": hospital_b.pk, "notes": "Consent for specialist"}),
+            json.dumps(
+                {
+                    "patient": patient_a.universal_id,
+                    "hospital": hospital_b.pk,
+                    "notes": "Consent for specialist",
+                }
+            ),
             content_type="application/json",
         )
         assert res.status_code in (200, 201)
@@ -337,6 +344,7 @@ class TestPatientConsentApi:
 
         # Verify can_access_patient now allows cross-hospital doctor_b
         from access.permissions import can_access_patient
+
         decision = can_access_patient(doctor_b, patient_a)
         assert decision
         assert decision.basis == "patient_consent"
@@ -395,7 +403,6 @@ class TestBreakGlassSetNull:
             created_at=timezone.now(),
             expires_at=timezone.now() + timedelta(hours=1),
         )
-        doctor_b_pk = doctor_b.pk
         doctor_b.delete()
 
         bg.refresh_from_db()
@@ -405,6 +412,7 @@ class TestBreakGlassSetNull:
     def test_deleting_patient_protected_when_break_glass_exists(self, db, doctor_b, patient_a):
         import pytest
         from django.db.models import ProtectedError
+
         from access.models import BreakGlassAccess
 
         BreakGlassAccess.objects.create(
@@ -417,4 +425,3 @@ class TestBreakGlassSetNull:
 
         with pytest.raises(ProtectedError):
             patient_a.delete()
-

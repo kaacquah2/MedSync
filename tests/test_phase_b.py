@@ -334,9 +334,7 @@ class TestReferrals:
         )
         assert resp.status_code == 403
 
-    def test_hospital_admin_can_view_referrals(
-        self, db, client, hospital_a
-    ):
+    def test_hospital_admin_can_view_referrals(self, db, client, hospital_a):
         hosp_admin = _make_user("admin_ref_view", "hospital_admin", hospital_a)
         client.force_login(hosp_admin)
         resp = client.get("/api/referrals/")
@@ -620,15 +618,17 @@ class TestVitals:
         client.force_login(nurse_a)
         resp = client.post(
             self._url(patient_a),
-            json.dumps({
-                "temperature": "30.0",
-                "heart_rate": 20,
-                "bp_systolic": 50,
-                "bp_diastolic": 30,
-                "spo2": "50.00",
-                "pain_score": 0,
-                "blood_glucose": "0.5",
-            }),
+            json.dumps(
+                {
+                    "temperature": "30.0",
+                    "heart_rate": 20,
+                    "bp_systolic": 50,
+                    "bp_diastolic": 30,
+                    "spo2": "50.00",
+                    "pain_score": 0,
+                    "blood_glucose": "0.5",
+                }
+            ),
             content_type="application/json",
         )
         assert resp.status_code == 201
@@ -636,23 +636,25 @@ class TestVitals:
 
         resp = client.post(
             self._url(patient_a),
-            json.dumps({
-                "temperature": "45.0",
-                "heart_rate": 300,
-                "bp_systolic": 250,
-                "bp_diastolic": 150,
-                "spo2": "100.00",
-                "pain_score": 10,
-                "blood_glucose": "50.0",
-            }),
+            json.dumps(
+                {
+                    "temperature": "45.0",
+                    "heart_rate": 300,
+                    "bp_systolic": 250,
+                    "bp_diastolic": 150,
+                    "spo2": "100.00",
+                    "pain_score": 10,
+                    "blood_glucose": "50.0",
+                }
+            ),
             content_type="application/json",
         )
         assert resp.status_code == 201
         assert float(resp.json()["blood_glucose"]) == 50.0
 
     def test_vitals_model_full_clean_validates_boundaries(self, db, patient_a, nurse_a):
-        from decimal import Decimal
         from django.core.exceptions import ValidationError
+
         from records.models import VitalSign
 
         vital = VitalSign(
@@ -665,6 +667,7 @@ class TestVitals:
 
     def test_vitals_model_clean_rejects_systolic_lte_diastolic(self, db, patient_a, nurse_a):
         from django.core.exceptions import ValidationError
+
         from records.models import VitalSign
 
         vital = VitalSign(
@@ -699,7 +702,9 @@ class TestVitals:
 
     def test_db_check_constraints_reject_out_of_range(self, db, patient_a, nurse_a):
         from decimal import Decimal
+
         from django.db import IntegrityError, transaction
+
         from records.models import VitalSign
 
         # Heart rate out of range at DB layer

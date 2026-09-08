@@ -93,9 +93,7 @@ class CanCreateLabResult(BasePermission):
     """lab_technician only (certified laboratory chain-of-custody)."""
 
     def has_permission(self, request, view):
-        return request.user.is_authenticated and _has_role(
-            request.user, "lab_technician"
-        )
+        return request.user.is_authenticated and _has_role(request.user, "lab_technician")
 
 
 class CanManageStaff(BasePermission):

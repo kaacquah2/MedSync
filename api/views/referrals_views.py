@@ -180,7 +180,10 @@ class ReferralStatusView(APIView):
 
         if new_status == Referral.Status.ACCEPTED:
             from access.permissions import ensure_treatment_relationship
-            from_name = referral.from_hospital.name if referral.from_hospital else "external hospital"
+
+            from_name = (
+                referral.from_hospital.name if referral.from_hospital else "external hospital"
+            )
             reason = f"Accepted referral from {from_name}"
             if referral.reason:
                 reason += f": {referral.reason}"

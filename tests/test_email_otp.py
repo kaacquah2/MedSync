@@ -219,7 +219,7 @@ class TestEmailOTP:
 
     def test_email_otp_uses_keyed_hmac_and_rejects_bare_sha256(self, db, doctor_a):
         import hashlib
-        from django.conf import settings
+
         from accounts.models import hash_email_otp
 
         otp_code = EmailOTP.objects.generate_for(doctor_a)
@@ -234,6 +234,7 @@ class TestEmailOTP:
 
     def test_email_otp_legacy_sha256_fallback(self, db, doctor_a):
         import hashlib
+
         from django.utils import timezone
 
         legacy_code = "123456"

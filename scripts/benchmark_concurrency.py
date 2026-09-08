@@ -26,9 +26,9 @@ Usage Examples:
 
 import argparse
 import os
+import statistics
 import sys
 import time
-import statistics
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
@@ -39,14 +39,15 @@ def run_internal_benchmark(concurrency_levels, requests_per_level):
 
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "emr.settings")
     import django
+
     django.setup()
 
     from django.db import connection, connections
-    from django.utils import timezone
-    from audit.utils import log_action
+
     from audit.models import AuditLog
-    from patients.models import Patient
+    from audit.utils import log_action
     from hospitals.models import Hospital
+    from patients.models import Patient
 
     # Ensure SQLite busy timeout is reasonable for concurrency testing
     if connection.vendor == "sqlite":
@@ -124,16 +125,18 @@ def run_internal_benchmark(concurrency_levels, requests_per_level):
         )
         max_lat = max(latencies) if latencies else 0
 
-        read_results.append({
-            "concurrency": c,
-            "requests": total_reqs,
-            "errors": errors,
-            "rps": rps,
-            "p50": p50,
-            "p90": p90,
-            "p95": p95,
-            "max": max_lat,
-        })
+        read_results.append(
+            {
+                "concurrency": c,
+                "requests": total_reqs,
+                "errors": errors,
+                "rps": rps,
+                "p50": p50,
+                "p90": p90,
+                "p95": p95,
+                "max": max_lat,
+            }
+        )
 
     # ─────────────────────────────────────────────────────────────────────────
     # Benchmark 2: Write Path (Synchronous Audit Hash Chain Serialization)
@@ -188,16 +191,18 @@ def run_internal_benchmark(concurrency_levels, requests_per_level):
         )
         max_lat = max(latencies) if latencies else 0
 
-        write_results.append({
-            "concurrency": c,
-            "requests": total_reqs,
-            "errors": errors,
-            "rps": rps,
-            "p50": p50,
-            "p90": p90,
-            "p95": p95,
-            "max": max_lat,
-        })
+        write_results.append(
+            {
+                "concurrency": c,
+                "requests": total_reqs,
+                "errors": errors,
+                "rps": rps,
+                "p50": p50,
+                "p90": p90,
+                "p95": p95,
+                "max": max_lat,
+            }
+        )
 
     # ─────────────────────────────────────────────────────────────────────────
     # Summary Tables
@@ -207,24 +212,44 @@ def run_internal_benchmark(concurrency_levels, requests_per_level):
     print("=" * 80)
 
     print("\n### Read Workload: Patient Record Fetch + Fernet Decryption")
-    print("| Concurrency | Total Requests | Success | Errors | Throughput (req/s) | p50 (ms) | p90 (ms) | p95 (ms) | Max (ms) |")
-    print("|:-----------:|:--------------:|:-------:|:------:|:------------------:|:--------:|:--------:|:--------:|:--------:|")
+    print(
+        "| Concurrency | Total Requests | Success | Errors | Throughput (req/s) | p50 (ms) | p90 (ms) | p95 (ms) | Max (ms) |"
+    )
+    print(
+        "|:-----------:|:--------------:|:-------:|:------:|:------------------:|:--------:|:--------:|:--------:|:--------:|"
+    )
     for r in read_results:
         success = r["requests"] - r["errors"]
-        print(f"| {r['concurrency']:11d} | {r['requests']:14d} | {success:7d} | {r['errors']:6d} | {r['rps']:18.1f} | {r['p50']:8.1f} | {r['p90']:8.1f} | {r['p95']:8.1f} | {r['max']:8.1f} |")
+        print(
+            f"| {r['concurrency']:11d} | {r['requests']:14d} | {success:7d} | {r['errors']:6d} | {r['rps']:18.1f} | {r['p50']:8.1f} | {r['p90']:8.1f} | {r['p95']:8.1f} | {r['max']:8.1f} |"
+        )
 
     print("\n### Write Workload: Audit Log Serialization & Hash-Chain Computation")
-    print("| Concurrency | Total Requests | Success | Errors | Throughput (req/s) | p50 (ms) | p90 (ms) | p95 (ms) | Max (ms) |")
-    print("|:-----------:|:--------------:|:-------:|:------:|:------------------:|:--------:|:--------:|:--------:|:--------:|")
+    print(
+        "| Concurrency | Total Requests | Success | Errors | Throughput (req/s) | p50 (ms) | p90 (ms) | p95 (ms) | Max (ms) |"
+    )
+    print(
+        "|:-----------:|:--------------:|:-------:|:------:|:------------------:|:--------:|:--------:|:--------:|:--------:|"
+    )
     for r in write_results:
         success = r["requests"] - r["errors"]
-        print(f"| {r['concurrency']:11d} | {r['requests']:14d} | {success:7d} | {r['errors']:6d} | {r['rps']:18.1f} | {r['p50']:8.1f} | {r['p90']:8.1f} | {r['p95']:8.1f} | {r['max']:8.1f} |")
+        print(
+            f"| {r['concurrency']:11d} | {r['requests']:14d} | {success:7d} | {r['errors']:6d} | {r['rps']:18.1f} | {r['p50']:8.1f} | {r['p90']:8.1f} | {r['p95']:8.1f} | {r['max']:8.1f} |"
+        )
 
     print("\n### Architectural Analysis & Trade-Offs")
-    print("- Read Path: Scales horizontally with low latency (<50ms p95), bounded only by connection pool size.")
-    print("- Write Path: Synchronously acquires an advisory lock (or DB transaction lock) to enforce strict")
-    print("  sequential SHA-256 hash chaining. Latency increases with concurrency due to lock serialization queue.")
-    print("  This represents a deliberate trade-off prioritizing cryptographic non-repudiation over raw throughput.")
+    print(
+        "- Read Path: Scales horizontally with low latency (<50ms p95), bounded only by connection pool size."
+    )
+    print(
+        "- Write Path: Synchronously acquires an advisory lock (or DB transaction lock) to enforce strict"
+    )
+    print(
+        "  sequential SHA-256 hash chaining. Latency increases with concurrency due to lock serialization queue."
+    )
+    print(
+        "  This represents a deliberate trade-off prioritizing cryptographic non-repudiation over raw throughput."
+    )
     print("=" * 80)
 
 
@@ -267,14 +292,28 @@ def run_http_benchmark(target_url, concurrency_levels, requests_per_level):
             if len(latencies) >= 20
             else (max(latencies) if latencies else 0)
         )
-        print(f"Concurrency {c:2d}: {len(latencies)} success, {errors} errors, {rps:6.1f} req/s, p50={p50:.1f}ms, p95={p95:.1f}ms")
+        print(
+            f"Concurrency {c:2d}: {len(latencies)} success, {errors} errors, {rps:6.1f} req/s, p50={p50:.1f}ms, p95={p95:.1f}ms"
+        )
 
 
 def main():
     parser = argparse.ArgumentParser(description="mEd Concurrency & Latency Benchmark Tool")
-    parser.add_argument("--internal", action="store_true", default=True, help="Run internal Django ORM/audit benchmark")
-    parser.add_argument("--target", type=str, default=None, help="Target HTTP server URL (e.g. http://127.0.0.1:8000)")
-    parser.add_argument("--concurrency", type=str, default="1,5,10,25", help="Comma-separated concurrency levels")
+    parser.add_argument(
+        "--internal",
+        action="store_true",
+        default=True,
+        help="Run internal Django ORM/audit benchmark",
+    )
+    parser.add_argument(
+        "--target",
+        type=str,
+        default=None,
+        help="Target HTTP server URL (e.g. http://127.0.0.1:8000)",
+    )
+    parser.add_argument(
+        "--concurrency", type=str, default="1,5,10,25", help="Comma-separated concurrency levels"
+    )
     parser.add_argument("--requests", type=int, default=20, help="Requests per concurrency level")
 
     args = parser.parse_args()

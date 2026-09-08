@@ -84,10 +84,7 @@ def _can_access_patient_inner(user, patient) -> AccessDecision:
     ):
         return AccessDecision(allowed=True, basis="admin")
 
-    if (
-        getattr(user, "is_hospital_admin", False)
-        or getattr(user, "role", None) == "hospital_admin"
-    ):
+    if getattr(user, "is_hospital_admin", False) or getattr(user, "role", None) == "hospital_admin":
         if (
             user.hospital is not None
             and patient.registered_at_hospital is not None

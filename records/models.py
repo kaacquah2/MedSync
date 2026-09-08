@@ -569,8 +569,7 @@ class VitalSign(TimeStampedModel):
             ),
             models.CheckConstraint(
                 check=(
-                    models.Q(spo2__isnull=True)
-                    | (models.Q(spo2__gte=50) & models.Q(spo2__lte=100))
+                    models.Q(spo2__isnull=True) | (models.Q(spo2__gte=50) & models.Q(spo2__lte=100))
                 ),
                 name="vitalsign_spo2_range",
             ),
@@ -584,7 +583,10 @@ class VitalSign(TimeStampedModel):
             models.CheckConstraint(
                 check=(
                     models.Q(blood_glucose__isnull=True)
-                    | (models.Q(blood_glucose__gte=Decimal("0.5")) & models.Q(blood_glucose__lte=Decimal("50.0")))
+                    | (
+                        models.Q(blood_glucose__gte=Decimal("0.5"))
+                        & models.Q(blood_glucose__lte=Decimal("50.0"))
+                    )
                 ),
                 name="vitalsign_blood_glucose_range",
             ),
@@ -598,7 +600,9 @@ class VitalSign(TimeStampedModel):
             and self.bp_systolic <= self.bp_diastolic
         ):
             raise ValidationError(
-                {"bp_systolic": "Systolic blood pressure must be greater than diastolic blood pressure."}
+                {
+                    "bp_systolic": "Systolic blood pressure must be greater than diastolic blood pressure."
+                }
             )
 
     def __str__(self):

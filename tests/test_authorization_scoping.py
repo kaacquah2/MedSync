@@ -165,4 +165,3 @@ class TestAuthorizationScoping:
         client.force_login(admin_b)
         resp = client.get(f"/api/wards/{ward_a.pk}/")
         assert resp.status_code == 403
-

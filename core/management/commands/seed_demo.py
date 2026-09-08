@@ -16,7 +16,10 @@ Demo credentials (all passwords = Demo@123456):
 """
 
 import os
+
 from django.core.management.base import BaseCommand
+
+from core.blind_index import make_blind_index
 
 # Default development demo password; configurable via DEMO_ACCOUNTS_PASSWORD in staging/demo deployments
 DEMO_PASSWORD = os.environ.get("DEMO_ACCOUNTS_PASSWORD", "Demo@123456")
@@ -205,8 +208,6 @@ class Command(BaseCommand):
             )
 
         # ── 3. Patients ───────────────────────────────────────────────────
-        from core.blind_index import make_blind_index
-
         patient_list = []
         for first, last, dob, sex, bg, nid, phone, address, reg_code in PATIENTS:
             # Dedup via blind-index - O(log n) indexed lookup instead of full scan

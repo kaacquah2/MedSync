@@ -10,8 +10,9 @@ Verifies:
 """
 
 from unittest.mock import patch
-from django.db import IntegrityError
+
 import pytest
+from django.db import IntegrityError
 
 from core.blind_index import make_blind_index
 from patients.models import Patient, generate_nhid
@@ -81,7 +82,6 @@ class TestNHID:
         patient_a.save()
         patient_a.refresh_from_db()
         assert patient_a.universal_id == original_id
-
 
 
 class TestBlindIndexOnPatient:
@@ -231,7 +231,9 @@ class TestPatientDetailView:
         patient_a.refresh_from_db()
         assert patient_a.phone == "+233200000002"
 
-    def test_patch_patient_with_matching_if_match_header_succeeds(self, client_as_doctor_a, patient_a):
+    def test_patch_patient_with_matching_if_match_header_succeeds(
+        self, client_as_doctor_a, patient_a
+    ):
         current_updated = patient_a.updated_at.isoformat()
         resp = client_as_doctor_a.patch(
             f"/api/patients/{patient_a.universal_id}/",
@@ -243,7 +245,9 @@ class TestPatientDetailView:
         patient_a.refresh_from_db()
         assert patient_a.phone == "+233200000003"
 
-    def test_patch_patient_with_stale_updated_at_returns_409_conflict(self, client_as_doctor_a, patient_a):
+    def test_patch_patient_with_stale_updated_at_returns_409_conflict(
+        self, client_as_doctor_a, patient_a
+    ):
         stale_updated = "2020-01-01T00:00:00Z"
         resp = client_as_doctor_a.patch(
             f"/api/patients/{patient_a.universal_id}/",
@@ -261,7 +265,9 @@ class TestPatientDetailView:
         patient_a.refresh_from_db()
         assert patient_a.phone != "+233200000099"
 
-    def test_patch_patient_with_stale_if_match_returns_409_conflict(self, client_as_doctor_a, patient_a):
+    def test_patch_patient_with_stale_if_match_returns_409_conflict(
+        self, client_as_doctor_a, patient_a
+    ):
         resp = client_as_doctor_a.patch(
             f"/api/patients/{patient_a.universal_id}/",
             {"phone": "+233200000099"},

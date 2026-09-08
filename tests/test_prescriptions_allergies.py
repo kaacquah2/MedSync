@@ -1,5 +1,7 @@
 import json
+
 import pytest
+
 from audit.models import AuditLog
 from patients.models import PatientAlert
 from records.models import Prescription
@@ -23,7 +25,9 @@ class TestPrescriptionAllergyEnforcement:
     def test_prescribe_without_allergy_conflict_succeeds(self, client_as_doctor_a, encounter_a):
         resp = client_as_doctor_a.post(
             f"/api/encounters/{encounter_a.pk}/prescriptions/",
-            json.dumps({"drug_name": "Paracetamol 500mg", "dosage": "500mg oral", "frequency": "8h"}),
+            json.dumps(
+                {"drug_name": "Paracetamol 500mg", "dosage": "500mg oral", "frequency": "8h"}
+            ),
             content_type="application/json",
         )
         assert resp.status_code == 201
@@ -35,7 +39,9 @@ class TestPrescriptionAllergyEnforcement:
     ):
         resp = client_as_doctor_a.post(
             f"/api/encounters/{encounter_a.pk}/prescriptions/",
-            json.dumps({"drug_name": "Amoxicillin 500mg", "dosage": "500mg oral", "frequency": "8h"}),
+            json.dumps(
+                {"drug_name": "Amoxicillin 500mg", "dosage": "500mg oral", "frequency": "8h"}
+            ),
             content_type="application/json",
         )
         assert resp.status_code == 409
@@ -54,12 +60,14 @@ class TestPrescriptionAllergyEnforcement:
         # Shorter than 10 characters
         resp = client_as_doctor_a.post(
             f"/api/encounters/{encounter_a.pk}/prescriptions/",
-            json.dumps({
-                "drug_name": "Amoxicillin 500mg",
-                "dosage": "500mg oral",
-                "frequency": "8h",
-                "allergy_override_reason": "ok",
-            }),
+            json.dumps(
+                {
+                    "drug_name": "Amoxicillin 500mg",
+                    "dosage": "500mg oral",
+                    "frequency": "8h",
+                    "allergy_override_reason": "ok",
+                }
+            ),
             content_type="application/json",
         )
         assert resp.status_code == 409
@@ -71,12 +79,14 @@ class TestPrescriptionAllergyEnforcement:
         override_text = "Desensitization completed under immunology supervision in ICU."
         resp = client_as_doctor_a.post(
             f"/api/encounters/{encounter_a.pk}/prescriptions/",
-            json.dumps({
-                "drug_name": "Amoxicillin 500mg",
-                "dosage": "500mg oral",
-                "frequency": "8h",
-                "allergy_override_reason": override_text,
-            }),
+            json.dumps(
+                {
+                    "drug_name": "Amoxicillin 500mg",
+                    "dosage": "500mg oral",
+                    "frequency": "8h",
+                    "allergy_override_reason": override_text,
+                }
+            ),
             content_type="application/json",
         )
         assert resp.status_code == 201
@@ -91,10 +101,14 @@ class TestPrescriptionAllergyEnforcement:
         assert rx.allergy_override_reason == override_text
 
         # Verify audit log recorded the clinical override in extra JSON
-        audit = AuditLog.objects.filter(
-            action=AuditLog.Action.CREATE_PRESCRIPTION,
-            patient_nhid=encounter_a.patient.nhid,
-        ).order_by("-id").first()
+        audit = (
+            AuditLog.objects.filter(
+                action=AuditLog.Action.CREATE_PRESCRIPTION,
+                patient_nhid=encounter_a.patient.nhid,
+            )
+            .order_by("-id")
+            .first()
+        )
         assert audit is not None
         assert audit.extra is not None
         assert audit.extra.get("allergy_override") is True
@@ -108,7 +122,9 @@ class TestPrescriptionAllergyEnforcement:
 
         resp = client_as_doctor_a.post(
             f"/api/encounters/{encounter_a.pk}/prescriptions/",
-            json.dumps({"drug_name": "Amoxicillin 500mg", "dosage": "500mg oral", "frequency": "8h"}),
+            json.dumps(
+                {"drug_name": "Amoxicillin 500mg", "dosage": "500mg oral", "frequency": "8h"}
+            ),
             content_type="application/json",
         )
         assert resp.status_code == 201
@@ -129,7 +145,9 @@ class TestPrescriptionAllergyEnforcement:
 
         resp = client_as_doctor_a.post(
             f"/api/encounters/{encounter_a.pk}/prescriptions/",
-            json.dumps({"drug_name": "Co-trimoxazole 480mg", "dosage": "480mg oral", "frequency": "12h"}),
+            json.dumps(
+                {"drug_name": "Co-trimoxazole 480mg", "dosage": "480mg oral", "frequency": "12h"}
+            ),
             content_type="application/json",
         )
         assert resp.status_code == 409

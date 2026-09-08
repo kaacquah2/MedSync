@@ -224,7 +224,9 @@ class EmailOTPManager(models.Manager):
 
         code_hash = hash_email_otp(code_str)
         legacy_hash = hashlib.sha256(code_str.encode()).hexdigest()
-        if secrets.compare_digest(code_hash, otp.code_hash) or secrets.compare_digest(legacy_hash, otp.code_hash):
+        if secrets.compare_digest(code_hash, otp.code_hash) or secrets.compare_digest(
+            legacy_hash, otp.code_hash
+        ):
             otp.used = True
             otp.used_at = now
             otp.save(update_fields=["used", "used_at"])
