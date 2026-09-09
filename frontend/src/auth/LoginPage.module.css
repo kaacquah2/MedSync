@@ -188,101 +188,181 @@
 /* Form Column */
 .formCol {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 3rem;
-  background-color: var(--mist);
+  padding: 3rem 4rem;
+  background: linear-gradient(180deg, #0D3536 0%, #071F20 100%);
   overflow-y: auto;
   min-height: 100vh;
+  width: 100%;
 }
 
 /* Sign-In Card */
 .card {
-  background-color: var(--card);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-login);
   width: 100%;
-  max-width: 440px;
-  padding: 2.5rem;
-  box-shadow: 0 4px 20px rgba(11, 59, 60, 0.03);
+  max-width: 520px;
+  padding: 1.5rem 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .greeting {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  color: var(--accent);
-  letter-spacing: 0.08em;
+  color: var(--gold);
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   margin-bottom: 0.5rem;
 }
 
 .cardHeading {
   font-family: 'Bricolage Grotesque', sans-serif;
-  font-size: 1.75rem;
+  font-size: 2.1rem;
   font-weight: 700;
-  color: var(--text);
+  color: #FFFFFF;
   line-height: 1.2;
   margin-bottom: 0.5rem;
 }
 
 .cardSubline {
-  font-size: 0.85rem;
-  color: var(--muted);
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.75);
   line-height: 1.5;
   margin-bottom: 2rem;
 }
 
-/* Custom Input and Button overrides */
-.input {
-  font-family: 'Inter', sans-serif !important;
-  border-radius: var(--radius-login) !important;
-  border: 1px solid var(--line) !important;
-  background-color: var(--mist) !important;
-  height: 48px !important;
-  color: var(--text) !important;
-  transition: all 0.15s ease !important;
+/* Input labels - high visibility */
+.inputLabel {
+  color: #FFFFFF !important;
+  font-size: 0.9rem !important;
+  font-weight: 600 !important;
+  margin-bottom: 0.45rem !important;
+  letter-spacing: 0.01em !important;
 }
 
-.input:focus-within,
-.input:focus {
-  border-color: var(--accent) !important;
-  outline: none !important;
-  box-shadow: 0 0 0 3px rgba(23, 126, 111, 0.25) !important;
+/* Custom Input and Button overrides - Text fields white with high contrast */
+:global([data-mantine-color-scheme="dark"]) .root :global(.mantine-TextInput-input),
+:global([data-mantine-color-scheme="dark"]) .root :global(.mantine-PasswordInput-input),
+:global([data-mantine-color-scheme="dark"]) .root :global(.mantine-Input-input),
+:global([data-mode="dark"]) .root :global(.mantine-TextInput-input),
+:global([data-mode="dark"]) .root :global(.mantine-PasswordInput-input),
+:global([data-mode="dark"]) .root :global(.mantine-Input-input),
+.root :global(.mantine-TextInput-input),
+.root :global(.mantine-PasswordInput-input),
+.root :global(.mantine-Input-input),
+.input,
+.inputMono {
+  font-family: 'Inter', sans-serif !important;
+  border-radius: 10px !important;
+  border: 1.5px solid #CBD5E1 !important;
+  background-color: #FFFFFF !important;
+  height: 50px !important;
+  color: #0F172A !important;
+  font-size: 0.95rem !important;
+  font-weight: 500 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+  transition: all 0.15s ease !important;
 }
 
 .inputMono {
   font-family: 'IBM Plex Mono', monospace !important;
-  border-radius: var(--radius-login) !important;
-  border: 1px solid var(--line) !important;
-  background-color: var(--mist) !important;
-  height: 48px !important;
-  color: var(--text) !important;
-  transition: all 0.15s ease !important;
 }
 
+:global([data-mantine-color-scheme="dark"]) .root :global(.mantine-TextInput-input:focus),
+:global([data-mantine-color-scheme="dark"]) .root :global(.mantine-PasswordInput-input:focus),
+:global([data-mantine-color-scheme="dark"]) .root :global(.mantine-PasswordInput-input:focus-within),
+.root :global(.mantine-TextInput-input:focus),
+.root :global(.mantine-PasswordInput-input:focus),
+.input:focus-within,
+.input:focus,
 .inputMono:focus-within,
 .inputMono:focus {
   border-color: var(--accent) !important;
   outline: none !important;
-  box-shadow: 0 0 0 3px rgba(23, 126, 111, 0.25) !important;
+  box-shadow: 0 0 0 3px rgba(47, 164, 143, 0.35) !important;
 }
 
+/* Inner input and typed text - crisp charcoal */
+:global([data-mantine-color-scheme="dark"]) .root input,
+:global([data-mantine-color-scheme="dark"]) .root :global(.mantine-PasswordInput-innerInput),
+:global([data-mode="dark"]) .root input,
+:global([data-mode="dark"]) .root :global(.mantine-PasswordInput-innerInput),
+.root input,
+.root :global(.mantine-PasswordInput-innerInput),
+.innerInput,
+.input input,
+.inputMono input {
+  color: #0F172A !important;
+  -webkit-text-fill-color: #0F172A !important;
+  background: transparent !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  font-weight: 500 !important;
+}
+
+/* Input placeholder text */
+:global([data-mantine-color-scheme="dark"]) .root input::placeholder,
+:global([data-mantine-color-scheme="dark"]) .root :global(.mantine-PasswordInput-innerInput)::placeholder,
+:global([data-mode="dark"]) .root input::placeholder,
+:global([data-mode="dark"]) .root :global(.mantine-PasswordInput-innerInput)::placeholder,
+.root input::placeholder,
+.root :global(.mantine-PasswordInput-innerInput)::placeholder,
+.input::placeholder,
+.inputMono::placeholder {
+  color: #64748B !important;
+  -webkit-text-fill-color: #64748B !important;
+  opacity: 1 !important;
+}
+
+/* Input left and right icons */
+:global([data-mantine-color-scheme="dark"]) .root :global(.mantine-TextInput-section),
+:global([data-mantine-color-scheme="dark"]) .root :global(.mantine-PasswordInput-section),
+:global([data-mode="dark"]) .root :global(.mantine-TextInput-section),
+:global([data-mode="dark"]) .root :global(.mantine-PasswordInput-section),
+.root :global(.mantine-TextInput-section),
+.root :global(.mantine-PasswordInput-section) {
+  color: #475569 !important;
+}
+
+.root :global(.mantine-PasswordInput-visibilityToggle) {
+  color: #475569 !important;
+}
+
+.root :global(.mantine-PasswordInput-visibilityToggle):hover {
+  color: #0F172A !important;
+  background-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Autofill styling with white background */
+:global([data-mantine-color-scheme="dark"]) .root input:-webkit-autofill,
+:global([data-mantine-color-scheme="dark"]) .root input:-webkit-autofill:hover,
+:global([data-mantine-color-scheme="dark"]) .root input:-webkit-autofill:focus,
+:global([data-mode="dark"]) .root input:-webkit-autofill,
+:global([data-mode="dark"]) .root input:-webkit-autofill:hover,
+:global([data-mode="dark"]) .root input:-webkit-autofill:focus,
+.root input:-webkit-autofill,
 .input:-webkit-autofill,
 .input:-webkit-autofill:hover,
 .input:-webkit-autofill:focus,
+.input input:-webkit-autofill,
 .inputMono:-webkit-autofill,
 .inputMono:-webkit-autofill:hover,
 .inputMono:-webkit-autofill:focus {
-  -webkit-text-fill-color: var(--text) !important;
-  -webkit-box-shadow: 0 0 0px 1000px var(--mist) inset !important;
+  -webkit-text-fill-color: #0F172A !important;
+  -webkit-box-shadow: 0 0 0px 1000px #FFFFFF inset !important;
   transition: background-color 5000s ease-in-out 0s;
 }
 
 .checkboxInput {
   border-radius: 4px !important;
-  border: 1px solid var(--line) !important;
+  border: 1.5px solid #CBD5E1 !important;
+  background-color: #FFFFFF !important;
   cursor: pointer;
+  width: 18px !important;
+  height: 18px !important;
 }
 
 .checkboxInput:checked {
@@ -292,63 +372,70 @@
 
 .checkboxInput:focus {
   outline: none !important;
-  box-shadow: 0 0 0 3px rgba(23, 126, 111, 0.25) !important;
+  box-shadow: 0 0 0 3px rgba(47, 164, 143, 0.3) !important;
 }
 
 .checkboxLabel {
-  font-size: 0.85rem !important;
-  color: var(--muted) !important;
+  font-size: 0.875rem !important;
+  color: #FFFFFF !important;
+  font-weight: 500 !important;
   cursor: pointer;
 }
 
 .forgotLink {
-  font-size: 0.85rem !important;
-  font-weight: 500 !important;
-  color: var(--accent) !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  color: var(--gold) !important;
   text-decoration: none !important;
 }
 
 .forgotLink:hover {
-  color: var(--accent-hover) !important;
+  color: #F8D07C !important;
   text-decoration: underline !important;
 }
 
 .button {
   font-family: 'Inter', sans-serif !important;
-  border-radius: var(--radius-login) !important;
+  border-radius: 10px !important;
   background-color: var(--accent) !important;
   color: #FFFFFF !important;
-  font-weight: 600 !important;
-  height: 48px !important;
-  transition: all 0.15s ease !important;
+  font-weight: 700 !important;
+  font-size: 1rem !important;
+  height: 50px !important;
+  transition: all 0.2s ease !important;
   border: none !important;
   cursor: pointer;
+  box-shadow: 0 2px 8px rgba(47, 164, 143, 0.35) !important;
 }
 
 .button:hover:not(:disabled) {
   background-color: var(--accent-hover) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(47, 164, 143, 0.5) !important;
 }
 
 .button:focus {
   outline: none !important;
-  box-shadow: 0 0 0 3px rgba(23, 126, 111, 0.35) !important;
+  box-shadow: 0 0 0 3px rgba(47, 164, 143, 0.4) !important;
 }
 
 .button:disabled {
-  background-color: var(--line) !important;
-  color: var(--muted) !important;
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
   cursor: not-allowed !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
 .buttonSubtle {
   font-family: 'Inter', sans-serif !important;
-  color: var(--muted) !important;
+  color: rgba(255, 255, 255, 0.8) !important;
   font-weight: 500 !important;
 }
 
 .buttonSubtle:hover {
-  color: var(--text) !important;
-  background-color: rgba(0, 0, 0, 0.03) !important;
+  color: #FFFFFF !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 /* Callouts */
@@ -399,29 +486,30 @@
 
 /* Dev details styles */
 .details {
-  border: 1px dashed var(--line);
-  border-radius: var(--radius-login);
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
   padding: 1rem;
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .details summary {
   font-family: 'IBM Plex Mono', monospace;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--gold);
   cursor: pointer;
   outline: none;
   user-select: none;
 }
 
 .details summary:hover {
-  color: var(--text);
+  color: #FFFFFF;
 }
 
 .detailsNote {
   font-family: 'Inter', sans-serif;
-  font-size: 0.75rem;
-  color: var(--muted);
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
   margin-bottom: 0.85rem;
 }
 
@@ -433,30 +521,31 @@
 
 .chip {
   font-family: 'IBM Plex Mono', monospace !important;
-  font-size: 0.7rem !important;
+  font-size: 0.75rem !important;
   border-radius: 8px !important;
-  padding: 0.35rem 0.5rem !important;
-  background-color: var(--mist) !important;
-  border: 1px solid var(--line) !important;
-  color: var(--text) !important;
+  padding: 0.45rem 0.65rem !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: #FFFFFF !important;
   cursor: pointer !important;
   text-align: left !important;
   transition: all 0.15s ease !important;
 }
 
 .chip:hover {
-  background-color: var(--line) !important;
-  border-color: var(--muted) !important;
+  background-color: rgba(255, 255, 255, 0.16) !important;
+  border-color: var(--accent) !important;
 }
 
 .chipLabel {
   font-weight: 600;
   display: block;
+  color: #FFFFFF;
 }
 
 .chipDesc {
-  font-size: 0.6rem;
-  color: var(--muted);
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.7);
   display: block;
 }
 

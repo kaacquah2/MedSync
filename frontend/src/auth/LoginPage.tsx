@@ -231,11 +231,14 @@ export function LoginPage() {
                   <TextInput
                     label="Username or staff ID"
                     placeholder="e.g. ugmc_doctor"
-                    leftSection={<IconUser size={16} />}
+                    leftSection={<IconUser size={18} color="#475569" />}
                     autoComplete="username"
                     autoFocus
                     spellCheck={false}
-                    classNames={{ input: classes.inputMono }}
+                    classNames={{
+                      input: classes.inputMono,
+                      label: classes.inputLabel,
+                    }}
                     {...form.getInputProps("username")}
                   />
                   
@@ -244,14 +247,19 @@ export function LoginPage() {
                       ref={passwordRef}
                       label="Password"
                       placeholder="Enter password"
-                      leftSection={<IconLock size={16} />}
+                      leftSection={<IconLock size={18} color="#475569" />}
                       autoComplete="current-password"
                       visible={passwordVisible}
                       onVisibilityChange={setPasswordVisible}
                       visibilityToggleButtonProps={{
-                        "aria-label": passwordVisible ? "Hide password" : "Show password"
+                        "aria-label": passwordVisible ? "Hide password" : "Show password",
+                        style: { color: "#475569" },
                       }}
-                      classNames={{ input: classes.input }}
+                      classNames={{
+                        input: classes.input,
+                        innerInput: classes.innerInput,
+                        label: classes.inputLabel,
+                      }}
                       {...form.getInputProps("password")}
                       onKeyUp={(e) => {
                         setCapsLock(e.getModifierState("CapsLock"));
@@ -393,7 +401,7 @@ export function LoginPage() {
                   <TextInput
                     label="Email or staff ID"
                     placeholder="Enter email or staff ID"
-                    classNames={{ input: classes.input }}
+                    classNames={{ input: classes.input, label: classes.inputLabel }}
                     autoFocus
                     {...forgotEmailForm.getInputProps("emailOrId")}
                   />
@@ -470,10 +478,19 @@ export function LoginPage() {
                 resetPasswordForm.reset();
               })}>
                 <Stack gap="md">
-                  <PasswordInput label="New password" placeholder="Enter new password" classNames={{ input: classes.input }} autoFocus
-                    {...resetPasswordForm.getInputProps("newPassword")} />
-                  <PasswordInput label="Confirm password" placeholder="Confirm new password" classNames={{ input: classes.input }}
-                    {...resetPasswordForm.getInputProps("confirmPassword")} />
+                  <PasswordInput
+                    label="New password"
+                    placeholder="Enter new password"
+                    classNames={{ input: classes.input, innerInput: classes.innerInput, label: classes.inputLabel }}
+                    autoFocus
+                    {...resetPasswordForm.getInputProps("newPassword")}
+                  />
+                  <PasswordInput
+                    label="Confirm password"
+                    placeholder="Confirm new password"
+                    classNames={{ input: classes.input, innerInput: classes.innerInput, label: classes.inputLabel }}
+                    {...resetPasswordForm.getInputProps("confirmPassword")}
+                  />
                   <Button type="submit" className={classes.button} fullWidth>Change password</Button>
                 </Stack>
               </form>
